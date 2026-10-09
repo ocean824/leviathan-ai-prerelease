@@ -1,0 +1,19 @@
+{
+  "schema_version": "leviathan.workload/1",
+  "profile_kind": "acceptance",
+  "name": "UNRESOLVED",
+  "provenance": {"uri": "UNRESOLVED", "sha256": "UNRESOLVED", "owner": "UNRESOLVED", "date": "UNRESOLVED"},
+  "seed": "UNRESOLVED",
+  "run_duration_seconds": "UNRESOLVED",
+  "warmup_seconds": "UNRESOLVED",
+  "traffic": {
+    "event_count": "UNRESOLVED", "event_rate_per_second": "UNRESOLVED",
+    "mix": {"quote": "UNRESOLVED", "trade": "UNRESOLVED", "book_delta": "UNRESOLVED", "status": "UNRESOLVED", "reference": "UNRESOLVED", "corporate_action": "UNRESOLVED", "news": "UNRESOLVED"},
+    "payload_bytes": {"quote": "UNRESOLVED", "trade": "UNRESOLVED", "book_delta": "UNRESOLVED", "status": "UNRESOLVED", "reference": "UNRESOLVED", "corporate_action": "UNRESOLVED", "news": "UNRESOLVED"},
+    "instruments": "UNRESOLVED", "venues": "UNRESOLVED", "channels": "UNRESOLVED", "producers": "UNRESOLVED", "consumers": "UNRESOLVED", "shards": "UNRESOLVED", "sustained_multiplier": "UNRESOLVED", "burst_multiplier": "UNRESOLVED", "burst_duration_seconds": "UNRESOLVED"
+  },
+  "disorder": {"duplicate_ratio": "UNRESOLVED", "late_ratio": "UNRESOLVED", "lateness_ms": "UNRESOLVED", "late_policy": "UNRESOLVED", "late_threshold_ms": "UNRESOLVED", "gap_ratio": "UNRESOLVED", "gap_size": "UNRESOLVED", "declared_intentional_sequence_gaps": "UNRESOLVED", "sequence_policy": "UNRESOLVED", "clock_skew_ms": "UNRESOLVED", "timezone_utc_encoding": "UNRESOLVED"},
+  "delivery": {"stage_name": "UNRESOLVED", "backpressure_policy": "UNRESOLVED", "fifo_reorder_window_events": "UNRESOLVED", "queue_capacity": "UNRESOLVED", "loss_policy": "UNRESOLVED", "dedupe_key": "UNRESOLVED", "ack_boundary": "UNRESOLVED", "durability_requirement": "UNRESOLVED", "retry_rule": "UNRESOLVED", "restart_rule": "UNRESOLVED"},
+  "storage_read": {"retention_hot_days": "UNRESOLVED", "retention_warm_days": "UNRESOLVED", "retention_cold_days": "UNRESOLVED", "write_read_ratio": "UNRESOLVED", "query_mix": "UNRESOLVED", "batch_max_events": "UNRESOLVED", "batch_max_wait_ms": "UNRESOLVED", "read_concurrency": "UNRESOLVED", "snapshot_restart_load": "UNRESOLVED", "compression": "UNRESOLVED", "object_size_bytes": "UNRESOLVED"},
+  "hardware": {"os_kernel": "UNRESOLVED", "cpu_model": "UNRESOLVED", "cpu_logical_count": "UNRESOLVED", "ram_bytes": "UNRESOLVED", "disk_type": "UNRESOLVED", "filesystem": "UNRESOLVED", "process_count": "UNRESOLVED", "runtime_version": "UNRESOLVED", "power_policy": "UNRESOLVED", "dataset_representative": "UNRESOLVED"}
+}

@@ -1,0 +1,33 @@
+{
+  "fixture_kind": "synthetic_complete_paper_account_view",
+  "venue": "IBKR_TWS",
+  "environment": "PAPER",
+  "expected_account_id": "synthetic-paper-account-001",
+  "account_view": {
+    "account_id": "synthetic-paper-account-001",
+    "open_orders": [
+      {
+        "observation_id": "synthetic-observation-001",
+        "environment": "paper",
+        "account_id": "synthetic-paper-account-001",
+        "venue": "IBKR_TWS",
+        "client_order_id": "synthetic-client-order-001",
+        "status": "WORKING",
+        "observed_at": "2026-10-05T11:59:00+00:00",
+        "venue_order_id": "synthetic-venue-order-001",
+        "broker_sequence": 7
+      }
+    ],
+    "positions": [
+      ["ES-202612", "1"]
+    ],
+    "broker_revision": 7,
+    "executions": [],
+    "executions_since": "2026-10-05T11:00:00+00:00"
+  },
+  "local_observed_at_ns": 1791201600000000000,
+  "unverified": {
+    "balances": true,
+    "session_id": true
+  }
+}

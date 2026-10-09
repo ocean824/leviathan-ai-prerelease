@@ -1,0 +1,1 @@
+{"status":"OK","request_id":"synthetic-quotes-001","results":[{"ticker":"AAPL","sip_timestamp":1791297000000000123,"participant_timestamp":1791297000000000000,"sequence_number":101,"bid_exchange":null,"ask_exchange":7,"bid_price":null,"ask_price":123.5000,"bid_size":null,"ask_size":11.00,"trf_timestamp":null}]}

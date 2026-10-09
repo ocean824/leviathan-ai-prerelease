@@ -1,0 +1,4 @@
+{
+  "kind": "enum",
+  "value": "__import__('os').system('touch marker')"
+}

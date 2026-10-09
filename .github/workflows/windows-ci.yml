@@ -1,0 +1,60 @@
+name: Windows CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+          architecture: x64
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.20"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Sync workspace
+        run: uv sync --locked --all-packages
+      - name: Ruff
+        run: uv run ruff check . --extend-exclude qa/integration-backups
+      - name: Mypy
+        run: uv run mypy
+      - name: Sidecar tests
+        run: uv run pytest -q apps/desktop/sidecar/tests
+      - name: Vault tests
+        run: uv run pytest -q packages/leviathan-vault/tests
+      - name: Release infrastructure tests
+        run: uv run pytest -q infra/release/tests
+      - name: API tests
+        run: uv run pytest -q apps/api/tests
+
+  terminal:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/terminal
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/terminal/package-lock.json
+      - run: npm ci
+      - run: npm test -- --maxWorkers=1
+      - run: npm run build

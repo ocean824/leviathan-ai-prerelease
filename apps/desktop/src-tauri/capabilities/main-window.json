@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Capabilities for the local Leviathan desktop window.",
+  "windows": ["main"],
+  "permissions": ["core:default", "process:allow-restart"]
+}

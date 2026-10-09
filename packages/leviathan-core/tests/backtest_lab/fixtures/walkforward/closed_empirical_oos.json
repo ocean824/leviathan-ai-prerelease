@@ -1,0 +1,8 @@
+{
+  "fixture_kind": "synthetic-negative-oos-retention",
+  "evidence_label": "CLOSED_EMPIRICAL",
+  "folds": [
+    {"id": "failed-oos", "is_metric": "0.8", "oos_metric": "-0.25"},
+    {"id": "favorable-oos", "is_metric": "0.6", "oos_metric": "0.75"}
+  ]
+}

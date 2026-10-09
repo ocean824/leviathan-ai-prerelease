@@ -1,0 +1,15 @@
+{
+  "version": "1.12.3",
+  "notes": "Synthetic desktop release for acceptance testing.",
+  "pub_date": "2026-10-01T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://downloads.example.test/releases/1.12.3/windows-x86_64.msi",
+      "signature": "synthetic-signature-desktop-windows"
+    },
+    "darwin-aarch64": {
+      "url": "https://downloads.example.test/releases/1.12.3/darwin-aarch64.app.tar.gz",
+      "signature": "synthetic-signature-desktop-darwin"
+    }
+  }
+}

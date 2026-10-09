@@ -1,0 +1,10 @@
+{
+  "purpose": "Independent exact-value inputs for INT-008-POLICY-v1 Echoes calculations.",
+  "eligible_state_count": 20,
+  "eligible_candidate_ids": ["s00", "s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09", "s10", "s11", "s12", "s13", "s14", "s15", "s16", "s17", "s18", "s19"],
+  "horizon_returns": ["0.01", "0.02", "0.03", "0.04", "0.05", "0.06", "0.07", "0.08", "0.09", "0.10", "0.11", "0.12", "-0.01", "-0.02", "-0.03", "-0.04", "-0.05", "-0.06", "0", "0"],
+  "positive_count": 12,
+  "wilson_z_95": "1.96",
+  "wilson_interval_95": ["0.3866", "0.7812"],
+  "insufficient_eligible_state_count": 19
+}

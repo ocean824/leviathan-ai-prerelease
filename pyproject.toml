@@ -1,0 +1,56 @@
+[project]
+name = "leviathan-workspace"
+version = "0.1.0"
+description = "LEVIATHAN AI — Black Wealth Capital trading intelligence platform (workspace root)"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    "httpx>=0.27",
+    "pytest-asyncio>=0.24",
+    "types-pyyaml>=6.0",
+    "leviathan-core",
+    "leviathan-store",
+    "leviathan-api",
+    "leviathan-vault",
+    "leviathan-market-data",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+leviathan-core = { workspace = true }
+leviathan-store = { workspace = true }
+leviathan-api = { workspace = true }
+leviathan-vault = { workspace = true }
+leviathan-market-data = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/leviathan-core", "packages/leviathan-store", "packages/leviathan-vault", "packages/leviathan-market-data", "apps/api"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["packages/leviathan-core/src", "packages/leviathan-vault/src", "packages/leviathan-market-data/src", "apps/api/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "SLF001"]
+
+[tool.ruff.lint.per-file-ignores]
+# ADR-0002 Amendment 1: private-API enforcement applies to non-test source only.
+"**/tests/**" = ["SLF001"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["packages/leviathan-core/src", "packages/leviathan-store/src", "packages/leviathan-vault/src", "packages/leviathan-market-data/src", "apps/api/src"]
+packages = ["leviathan_core", "leviathan_store", "leviathan_vault", "leviathan_market_data", "leviathan_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/leviathan-core/tests", "packages/leviathan-store/tests", "packages/leviathan-vault/tests", "packages/leviathan-market-data/tests", "apps/api/tests"]

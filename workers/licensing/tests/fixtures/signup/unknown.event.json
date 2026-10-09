@@ -1,0 +1,10 @@
+{
+  "id": "evt_unknown_001",
+  "type": "customer.created",
+  "created": 1800000002,
+  "data": {
+    "object": {
+      "id": "cus_test_001"
+    }
+  }
+}

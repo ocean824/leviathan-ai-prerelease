@@ -1,0 +1,83 @@
+{
+  "description": "Canonical NQ opening-range-break paper replay. One fixture must be able to enter through ingress, be classified by state, validated by truth, approved by decision and risk, simulated by paper execution, and recorded by the journal layer (module-map handoff standard).",
+  "strategy_genome": {
+    "strategy_id": "genome_nq_opening_range_break_v1",
+    "family": "opening_range_break",
+    "market": "NQ",
+    "timeframe": "1m-5m",
+    "session_dependencies": ["ny_open"],
+    "state_dependencies": ["breakout", "trend_continuation"],
+    "entry_conditions": [
+      "opening range defined",
+      "structure break above opening range high",
+      "liquidity sweep complete"
+    ],
+    "exit_conditions": [
+      "2R achieved",
+      "failed acceptance back inside range",
+      "macro event invalidation"
+    ],
+    "risk_profile": "moderate_intraday",
+    "failure_modes": ["fake breakout", "news reversal", "thin liquidity continuation trap"],
+    "prop_firm_compatible": true
+  },
+  "candidate_setup": {
+    "setup_id": "setup_6fc2a3d4c211",
+    "instrument": "NQ",
+    "timestamp": "2026-04-15T14:35:00Z",
+    "signal_features": ["msb_up", "opening_range_break", "ema_alignment"],
+    "session_label": "ny_open",
+    "range_label": "above_opening_range_high",
+    "state_label": "breakout",
+    "liquidity_features": ["equal_highs_swept", "inefficiency_below"]
+  },
+  "truth_validation": {
+    "setup_id": "setup_6fc2a3d4c211",
+    "orderbook_bias": "bullish",
+    "options_context": "No large bearish sweep detected in near-dated contracts.",
+    "event_risk": "safe",
+    "sentiment_modifier": 0.07,
+    "truth_status": "confirmed",
+    "notes": "Aggressive buyers lifted the offer after the sweep and accepted above the opening range high."
+  },
+  "decision_packet": {
+    "decision_id": "dec_78cd20a4f5aa",
+    "setup_id": "setup_6fc2a3d4c211",
+    "permission": "approve",
+    "direction": "long",
+    "confidence": 0.74,
+    "entry_style": "breakout_retest",
+    "scaling_allowed": true,
+    "justification": "Signal, state, and truth layers are aligned with no current macro veto."
+  },
+  "risk_snapshot": {
+    "session_id": "session_8a20d88fbc",
+    "max_daily_drawdown_pct": "1.5",
+    "max_position_size": "0.25",
+    "allowed_instruments": ["NQ"],
+    "prop_firm_rules": ["daily_dd_lock", "loss_streak_throttle", "no_overnight_hold"],
+    "frozen_at": "2026-04-15T14:35:01Z",
+    "risk_lock_sha256": ""
+  },
+  "execution_intent": {
+    "decision_id": "dec_78cd20a4f5aa",
+    "risk_session_id": "session_8a20d88fbc",
+    "broker_path": "paper_sim",
+    "order_type": "limit",
+    "size": "0.1",
+    "stop_loss": "18240.0",
+    "take_profit": "18270.0",
+    "time_in_force": "DAY"
+  },
+  "trade_journal_record": {
+    "trade_id": "trade_2bc44d781e2c",
+    "setup_id": "setup_6fc2a3d4c211",
+    "decision_id": "dec_78cd20a4f5aa",
+    "entry": "18250.0",
+    "exit": "18268.0",
+    "mae": "-3.0",
+    "mfe": "18.0",
+    "outcome": "win",
+    "post_trade_notes": "Paper-trade replay completed with orderly retest confirmation and no risk veto."
+  }
+}

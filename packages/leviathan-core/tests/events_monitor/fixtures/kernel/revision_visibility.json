@@ -1,0 +1,12 @@
+﻿{
+  "event_id": "issuer-42:earnings:q3fy26",
+  "old_revision": 1,
+  "new_revision": 2,
+  "old_available_ns": 100,
+  "new_published_ns": 200,
+  "new_received_ns": 210,
+  "new_available_ns": 220,
+  "asof_before_revision": 219,
+  "asof_after_revision": 220,
+  "event_time_ns": 1000
+}

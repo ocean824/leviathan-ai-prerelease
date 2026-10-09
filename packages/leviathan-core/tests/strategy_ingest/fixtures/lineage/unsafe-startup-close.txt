@@ -1,0 +1,3 @@
+# Synthetic hazard description only; never import or execute this fixture.
+Synthetic note: startup issues BUY; failed close clears local state.
+open("MARKER_PATH", "w").write("executed")

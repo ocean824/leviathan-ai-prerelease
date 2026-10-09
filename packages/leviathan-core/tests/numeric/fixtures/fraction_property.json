@@ -1,0 +1,6 @@
+{
+  "seed": 20261001,
+  "cases_per_operation": 1000,
+  "coefficient_bound": 1000000000000,
+  "maximum_scale": 8
+}

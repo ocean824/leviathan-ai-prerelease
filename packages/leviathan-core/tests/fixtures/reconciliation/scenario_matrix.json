@@ -1,0 +1,106 @@
+{
+  "fixture_kind": "synthetic_acceptance_matrix",
+  "environment": "PAPER",
+  "local_observed_at_ns": 1791201600000000000,
+  "cases": [
+    {
+      "id": "lost_submit_ack",
+      "invariant": "A broker-visible exact client order ID resolves UNKNOWN_SUBMIT without retry or duplicate submission."
+    },
+    {
+      "id": "lost_cancel_ack",
+      "invariant": "An open broker order does not confirm a requested cancel; state stays CANCEL_REQUESTED_UNCONFIRMED and submission remains blocked."
+    },
+    {
+      "id": "post_gtd_fill",
+      "invariant": "A late execution remains recorded as a fill with discrepancy and operator alert; it is not erased or treated as canceled."
+    },
+    {
+      "id": "duplicate_callback",
+      "invariant": "Repeating the same callback is idempotent and the execution is counted once."
+    },
+    {
+      "id": "execution_correction",
+      "invariant": "A changed previously recorded execution appends a compensating event, preserves its original, and blocks pending operator resolution."
+    },
+    {
+      "id": "execution_bust",
+      "invariant": "A previously recorded execution absent from a complete covering execution window appends a compensating event, preserves its original, and blocks pending operator resolution."
+    },
+    {
+      "id": "incomplete_read",
+      "invariant": "A port-level BrokerOutcomeUnknown produces UNKNOWN and keeps the account blocked; partial data cannot reconcile."
+    },
+    {
+      "id": "wrong_account_or_environment",
+      "invariant": "Identity from BrokerPortV1.venue must match caller expectation; mismatch is UNKNOWN and blocks submission."
+    },
+    {
+      "id": "broker_only_order",
+      "invariant": "An unmatched broker order is BROKER_ONLY and is never attached by instrument or quantity alone; divergence blocks submission."
+    },
+    {
+      "id": "stale_local_observation",
+      "invariant": "Injected LOCAL_OBSERVED_AT older than the exact freshness bound yields UNKNOWN and blocks submission."
+    },
+    {
+      "id": "local_observation_freshness_boundary",
+      "invariant": "An observation exactly at the freshness limit is accepted; one nanosecond older is UNKNOWN and blocking."
+    },
+    {
+      "id": "position_mismatch",
+      "invariant": "AccountViewV1 positions must exactly match OMS-derived positions; mismatch is CONFLICT and blocks submission."
+    },
+    {
+      "id": "restart_replay",
+      "invariant": "The same ledger and complete account view after restart produce the same deterministic result; startup submits zero orders."
+    },
+    {
+      "id": "operator_resolution",
+      "invariant": "Resolution requires explicit operator actor, reason, and evidence; it is audited and does not create a submit, cancel, or offset order."
+    },
+    {
+      "id": "paper_unverified_balance_and_session",
+      "invariant": "Balances and session remain UNVERIFIED and non-blocking in PAPER or DEMO, explicitly reflected in the result."
+    },
+    {
+      "id": "live_unverified_balance_and_session",
+      "invariant": "Balances and session remain UNVERIFIED and blocking in LIVE."
+    },
+    {
+      "id": "as04_close_without_broker_id_or_fill",
+      "invariant": "A close request with no broker ID and no fill leaves the position open/unknown; it cannot silently become flat."
+    },
+    {
+      "id": "startup_zero_orders",
+      "invariant": "Startup/reconnect reconciliation is read-only and emits or submits zero orders."
+    },
+    {
+      "id": "wrong_account_hold_key",
+      "invariant": "A result for a port identity mismatch is keyed to the caller's expected account, never the unexpected account."
+    },
+    {
+      "id": "cross_venue_or_misowned_execution",
+      "invariant": "An execution from another venue or conflicting native/client order owners cannot be counted as a local match."
+    },
+    {
+      "id": "unexplained_partial_order",
+      "invariant": "A PARTIALLY_FILLED state without reconciled execution evidence remains discrepant and blocks submission."
+    },
+    {
+      "id": "missing_native_order_id",
+      "invariant": "A working-order observation missing its venue-native ID cannot confirm a native-ID-bound OMS order."
+    },
+    {
+      "id": "nonexistent_parent_lineage",
+      "invariant": "An order referring to a parent absent from the ledger yields UNKNOWN, blocks submission, and reports LOCAL_LINEAGE_INVALID."
+    },
+    {
+      "id": "bounded_local_observation_age",
+      "invariant": "The caller cannot extend the approved freshness bound by supplying a larger max_age_ns; an observation beyond 300 seconds remains stale."
+    }
+  ],
+  "unverified_fields": ["balances", "session_id"],
+  "paper_demo_unverified_fields_block": false,
+  "live_unverified_fields_block": true
+}

@@ -1,0 +1,38 @@
+# LEVIATHAN AI — local infrastructure
+# NOTE: Docker is not yet installed on the primary dev machine; this file
+# is the contract for when it is. TimescaleDB carries journals/time-series;
+# Redis carries live orchestration state.
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: leviathan-timescaledb
+    environment:
+      POSTGRES_USER: leviathan
+      POSTGRES_PASSWORD: leviathan
+      POSTGRES_DB: leviathan
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leviathan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: leviathan-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  timescale-data:
+  redis-data:

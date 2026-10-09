@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "license": {
+    "schemaVersion": 1,
+    "orgId": "org-acceptance-fixture",
+    "licenseId": "lic-expired-fixture",
+    "subscriptionRevision": "4",
+    "status": "ACTIVE",
+    "termStartUtcNs": "1700000000000000000",
+    "termEndUtcNs": "1790000000000000000",
+    "issuedAtUtcNs": "1700000000000000000",
+    "lastOnlineVerifiedUtcNs": "1780000000000000000",
+    "features": {
+      "paper.read": true,
+      "LIVE.orders": true
+    },
+    "limits": {
+      "max_orders": "10"
+    },
+    "audience": "leviathan-desktop",
+    "deviceId": "device-acceptance-fixture",
+    "signingKeyId": "fixture-key-1",
+    "signature": {
+      "algorithm": "ECDSA_P256_SHA256",
+      "value": "AA"
+    }
+  },
+  "observed_at_ns": "1800000000000000000",
+  "request_id": "acceptance-fixture-expired",
+  "entitlement_state": "VERIFIED_ONLINE"
+}

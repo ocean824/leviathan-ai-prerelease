@@ -1,0 +1,12 @@
+{
+  "hazards": ["unsafe_startup_order", "failed_close_local_reset"],
+  "source_rights": "unverified",
+  "source_asset_kind": "source_code",
+  "source_id": "synthetic-hftcode",
+  "source_version": 1,
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "unresolved_claims": ["CAND-09"],
+  "reviewed_rules": false,
+  "risk_policy_hash": null,
+  "live_order_mode": true
+}

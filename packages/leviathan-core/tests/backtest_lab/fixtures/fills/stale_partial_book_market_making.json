@@ -1,0 +1,24 @@
+{
+  "scenario": "synthetic_stale_partial_book_market_making",
+  "provenance": "Independent synthetic replacement scenario; no external source performance claim is encoded.",
+  "session": {"venue": "XNYS", "session_date": "2026-01-02", "open_ns": 0, "close_ns": 100},
+  "events": [
+    {"kind": "book_snapshot", "event_ns": 10, "levels": [
+      {"side": "bid", "price": "100.00", "size": "4"},
+      {"side": "ask", "price": "100.20", "size": "1"}
+    ]},
+    {"kind": "trade", "event_ns": 11, "price": "100.00", "size": "3"},
+    {"kind": "trade", "event_ns": 12, "price": "100.00", "size": "3"},
+    {"kind": "book_snapshot", "event_ns": 13, "levels": [
+      {"side": "bid", "price": "100.10", "size": "1"},
+      {"side": "ask", "price": "100.30", "size": "1"}
+    ]},
+    {"kind": "quote", "event_ns": 16, "bid_price": "100.10", "bid_size": "1", "ask_price": "100.30", "ask_size": "1"}
+  ],
+  "maker_quantity": "1",
+  "exit_quantity": "2",
+  "fee_per_share": "0.06",
+  "queue_share": "1",
+  "half_queue_share": "0.5",
+  "max_book_age_ns": 2
+}

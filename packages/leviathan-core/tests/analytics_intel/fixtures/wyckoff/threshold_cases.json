@@ -1,0 +1,13 @@
+{
+  "purpose": "Boundary values are deliberately exact; comparisons use Decimal, not float.",
+  "volume_average": "100",
+  "climax_volume_at_boundary": "200",
+  "climax_range_at_boundary": "15",
+  "atr": "10",
+  "spring_false_break_at_boundary": "5",
+  "spring_return_deadline_bars": 3,
+  "sos_volume_at_boundary": "150",
+  "below_climax_volume": "199.9999999999999999999999999999999",
+  "below_sos_volume": "149.9999999999999999999999999999999",
+  "above_spring_break": "5.000000000000000000000000000001"
+}

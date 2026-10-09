@@ -1,0 +1,7 @@
+[
+  {"asset_id": "synthetic-grid-variant-alpha", "status": "GRID_VARIANT"},
+  {"asset_id": "synthetic-grid-variant-beta", "status": "GRID_VARIANT"},
+  {"asset_id": "synthetic-failed-oos-lane", "status": "FAILED_OOS"},
+  {"asset_id": "synthetic-parameter-only-values", "status": "PARAMETER_ONLY"}
+]
+

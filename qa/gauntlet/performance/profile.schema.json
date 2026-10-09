@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leviathan.performance-profile/1",
+  "title": "Bounded local synthetic performance run profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "name", "workload_profile", "repeat_count", "timeout_seconds"],
+  "properties": {
+    "schema_version": {"const": "leviathan.performance-profile/1"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "workload_profile": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "repeat_count": {"type": "integer", "minimum": 3, "maximum": 5},
+    "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 120}
+  }
+}

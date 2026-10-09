@@ -1,0 +1,14 @@
+name = "leviathan-data-gateway"
+main = "src/handler.ts"
+compatibility_date = "2026-10-07"
+workers_dev = false
+
+# Configure the LICENSE_WORKER service binding to the deployed licensing Worker.
+# Alternatively set LICENSE_VERIFY_PUBLIC_KEY_JWK to the licence Worker's published
+# ES256 P-256 verification JWK. Its token binds iss/aud/sub/device_id/licence_id/
+# entitled/iat/exp and has a maximum lifetime of 24 hours.
+# Configure RATE_LIMIT as a KV namespace or Durable Object namespace; the Worker
+# has a bounded per-isolate fallback when this optional binding is absent.
+# Set provider secrets with `wrangler secret put PROVIDER__<ID>__API_KEY`.
+# Supported IDs: DATABENTO, MASSIVE, FRED, BEA, EIA, UNUSUAL_WHALES.
+# No secret or namespace identifier is committed in this file.

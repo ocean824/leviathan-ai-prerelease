@@ -1,0 +1,11 @@
+{
+  "account_id": "synthetic-paper-account-01",
+  "broker_revision": 10,
+  "open_orders": [],
+  "positions": [],
+  "observed_at": "2026-10-05T15:00:00Z",
+  "venue_time_ns": 100,
+  "executions_since": "2026-10-05T14:59:00Z",
+  "executions": [],
+  "executions_complete": true
+}

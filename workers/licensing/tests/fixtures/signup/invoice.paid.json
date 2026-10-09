@@ -1,0 +1,26 @@
+{
+  "id": "evt_invoice_paid_001",
+  "type": "invoice.paid",
+  "created": 1800000001,
+  "data": {
+    "object": {
+      "id": "in_test_001",
+      "subscription": "sub_test_001",
+      "customer": "cus_test_001",
+      "metadata": {
+        "org_id": "org_001",
+        "pending_account_id": "pending_001"
+      },
+      "lines": {
+        "data": [
+          {
+            "period": {
+              "start": 1800000000,
+              "end": 1802592000
+            }
+          }
+        ]
+      }
+    }
+  }
+}

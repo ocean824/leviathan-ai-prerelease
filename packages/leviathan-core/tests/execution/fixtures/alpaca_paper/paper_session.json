@@ -1,0 +1,32 @@
+{
+  "binding": {
+    "account_id": "synthetic-paper-account-01",
+    "mapping_revision": "synthetic-map-v1",
+    "calendar_revision": "synthetic-xnys-calendar-v1",
+    "environment": "PAPER",
+    "base_url_identity": "ALPACA_PAPER",
+    "api_version": "v2",
+    "credential_ref": null
+  },
+  "assets": {
+    "revision": "synthetic-map-v1",
+    "items": [
+      {
+        "instrument_id": "equity-AAPL",
+        "asset_id": "asset-AAPL",
+        "symbol": "AAPL",
+        "tick_size": "0.01",
+        "lot_size": "1",
+        "round_quantity_toward_zero": false
+      },
+      {
+        "instrument_id": "equity-MSFT",
+        "asset_id": "asset-MSFT",
+        "symbol": "MSFT",
+        "tick_size": "0.01",
+        "lot_size": "1",
+        "round_quantity_toward_zero": false
+      }
+    ]
+  }
+}

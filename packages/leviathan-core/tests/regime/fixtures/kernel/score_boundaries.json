@@ -1,0 +1,6 @@
+﻿{
+  "thresholds": ["-2", "-1.2", "-0.4", "0.4", "1.2", "2"],
+  "expected_regimes": [-2, -1, 0, 0, 1, 2],
+  "weights": ["0.30", "0.30", "0.20", "0.20"],
+  "missing_factor_case": ["dealer", "dp", "macro"]
+}

@@ -1,0 +1,8 @@
+{
+  "pre_close": "100",
+  "post_close": "110",
+  "expected_relative": "0.05",
+  "expected_currency": "5",
+  "signed_simple_percent": "10",
+  "signed_dollar_move": "10"
+}

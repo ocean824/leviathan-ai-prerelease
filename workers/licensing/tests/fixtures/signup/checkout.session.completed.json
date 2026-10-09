@@ -1,0 +1,20 @@
+{
+  "id": "evt_checkout_001",
+  "type": "checkout.session.completed",
+  "created": 1800000000,
+  "data": {
+    "object": {
+      "id": "cs_test_session_001",
+      "client_reference_id": "pending_001",
+      "customer": "cus_test_001",
+      "subscription": "sub_test_001",
+      "payment_status": "paid",
+      "current_period_start": 1800000000,
+      "current_period_end": 1802592000,
+      "metadata": {
+        "org_id": "org_001",
+        "pending_account_id": "pending_001"
+      }
+    }
+  }
+}

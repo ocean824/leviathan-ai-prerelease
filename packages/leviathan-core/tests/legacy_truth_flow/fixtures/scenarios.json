@@ -1,0 +1,37 @@
+{
+  "query": {
+    "tenant_scope": "tenant-synthetic-a",
+    "symbol": "SYNTH",
+    "osi": "SYNTH 261218C00100000",
+    "start_ns": 1766016000000000000,
+    "end_ns": 1766102400000000000,
+    "cursor": "cursor-synthetic-1"
+  },
+  "legacy_first": {
+    "record_id": "legacy-synthetic-001",
+    "source": "legacy",
+    "schema_version": "legacy-1",
+    "local_receipt_id": "receipt-one"
+  },
+  "mapped_proxy": {
+    "record_id": "mapped-synthetic-001",
+    "source": "mapped-v2",
+    "schema_version": "mapped-v2",
+    "local_receipt_id": "receipt-two",
+    "mapping_unique": true,
+    "dataset_permission_verified": true
+  },
+  "semantic_fields": {
+    "symbol": "SYNTH",
+    "event_time_ns": 1766000000000000000,
+    "side": "BUY",
+    "venue": "SYNTH-VENUE",
+    "currency": "USD",
+    "value": "10.25"
+  },
+  "evidence_statuses": ["STALE", "EMBARGOED", "UNENTITLED", "UNKNOWN"],
+  "mutating_verbs": ["POST", "PUT", "PATCH", "DELETE"],
+  "write_status": 405,
+  "write_allow": "GET,HEAD",
+  "sunset_status": 410
+}

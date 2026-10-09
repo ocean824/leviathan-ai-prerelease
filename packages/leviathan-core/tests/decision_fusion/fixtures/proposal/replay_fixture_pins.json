@@ -1,0 +1,5 @@
+{
+  "fixture_id": "synthetic-decision-replay-v1",
+  "c102_bars_payload": "synthetic-c102-bars-v1\nsymbol=SYNTH\ncount=3\n",
+  "c102_lock_payload": "synthetic-c102-lock-v1\npolicy=decision-policy-v1\n"
+}

@@ -1,0 +1,113 @@
+predicate	value	safe
+display	risk	true
+display	desk	true
+display	risk-control	true
+display	Aster-Node7-Team	true
+display	Safe Label3	true
+display	Alpha v2	true
+display	fx-majors	true
+display	api-gateway	false
+display	wave-2	false
+display	bridge-1	false
+display	Tokenized Alpha	true
+display	hunter2	true
+display	sketch	true
+display	skAlpha	true
+display	ghpAlpha	true
+display	password123	false
+display	password3	false
+display	secret1	false
+display	my-secret2	false
+display	apikeyprod	false
+display	pass-wd	true
+display	MySecretKey	false
+display	my secretary	true
+display	my-secretary	true
+display	passwordless	true
+display	MySecretPlan	true
+display	PasswordManager	true
+display	my password	false
+display	secret	false
+display	API-GATEWAY	false
+display	SECRET	false
+display	MY PASSWORD	false
+display	MY-SECRETARY	true
+display	PASSWORDLESS	true
+display	glpat-testfixturetoken	false
+display	pypi-testfixturetoken	false
+display	sk-testfixturetoken	false
+display	github_pat_testfixturetoken	false
+display	ghp_testfixturetoken	false
+display	xoxb-test-fixture-token	false
+display	AKIA000000000000TEST	false
+display	eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl	false
+display	sk_live	false
+display	ghp_example	false
+display	ghp_x	false
+display	xoxAlpha	false
+display	AKIAIOSFODNNEXAMPLE	false
+display	akia-secret	false
+display	123456789	false
+display	123456789012	false
+identifier	risk	true
+identifier	desk	true
+identifier	risk-control	true
+identifier	risk_control	true
+identifier	apiary	true
+identifier	1alpha	true
+identifier	fx-majors	true
+identifier	api-gateway	false
+identifier	wave-2	true
+identifier	bridge-1	true
+identifier	Alpha v2	false
+identifier	sketch	true
+identifier	skAlpha	true
+identifier	ghpAlpha	true
+identifier	password123	false
+identifier	password3	false
+identifier	secret1	false
+identifier	my-secret2	false
+identifier	apikeyprod	false
+identifier	MySecretKey	false
+identifier	my secretary	false
+identifier	my-secretary	true
+identifier	passwordless	true
+identifier	MySecretPlan	true
+identifier	PasswordManager	true
+identifier	my password	false
+identifier	secret	false
+identifier	API-GATEWAY	false
+identifier	SECRET	false
+identifier	MY PASSWORD	false
+identifier	MY-SECRETARY	true
+identifier	PASSWORDLESS	true
+identifier	glpat-testfixturetoken	false
+identifier	pypi-testfixturetoken	false
+identifier	sk-testfixturetoken	false
+identifier	github_pat_testfixturetoken	false
+identifier	ghp_testfixturetoken	false
+identifier	xoxb-test-fixture-token	false
+identifier	AKIA000000000000TEST	false
+identifier	eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl	false
+identifier	sk_live	false
+identifier	ghp_example	false
+identifier	ghp_x	false
+identifier	xoxAlpha	false
+identifier	AKIAIOSFODNNEXAMPLE	false
+identifier	foo.123456789	false
+identifier	123456789012	false
+identifier	Risk123	false
+identifier	hunter2	false
+identifier	AKIAIOSFODNNEXAMPLE	false
+identifier	AKIAIOSFODNNEXAMPLEKEY	false
+identifier	akia-secret	false
+identifier	foo_glpat-testfixturetoken	false
+identifier	x_pypi-testfixturetoken	false
+identifier	a_ghp_testfixturetoken	false
+identifier	pre-sk-testfixturetoken	false
+identifier	a.github_pat_testfixturetoken	false
+identifier	x:xoxb-test-fixture-token	false
+identifier	wave-2	true
+identifier	risk_control	true
+identifier	desk_1	true
+identifier	alpha-v2	true

@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leviathan.example/schemas/gauntlet-candidate-v1.schema.json",
+  "title": "GauntletCandidateManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate", "requirements", "source_criteria", "release_gates"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "version",
+        "source_commit",
+        "environment",
+        "requirements_map_sha256",
+        "source_inventory_sha256",
+        "release_artifacts"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
+        },
+        "requirements_map_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "release_artifacts": {
+          "type": "array",
+          "description": "Optional references to project QA handoff records; only a handoff result bound to a criterion or gate counts as evidence.",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "source_exclusions": {
+          "type": "array",
+          "description": "Explicit hash-pinned exclusions for PRD source files; excluded files remain in the source inventory hash.",
+          "items": {
+            "$ref": "#/$defs/sourceExclusion"
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/requirement"
+      }
+    },
+    "source_criteria": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceCriterion"
+      }
+    },
+    "release_gates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/releaseGate"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "environment": {
+      "enum": ["development", "test", "staging", "production"]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "sha256"],
+      "properties": {
+        "kind": { "const": "PROJECT_QA_HANDOFF" },
+        "path": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criterion_id",
+        "expected_behavior",
+        "actual_result",
+        "test_types",
+        "evidence",
+        "environment",
+        "severity",
+        "status"
+      ],
+      "properties": {
+        "criterion_id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "actual_result": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "test_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "static",
+              "unit",
+              "component",
+              "integration",
+              "contract",
+              "end_to_end",
+              "system",
+              "ux",
+              "accessibility",
+              "security",
+              "compliance",
+              "data",
+              "performance",
+              "load",
+              "soak",
+              "failure",
+              "recovery",
+              "compatibility",
+              "regression",
+              "release"
+            ]
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
+        },
+        "severity": {
+          "enum": ["P0", "P1", "P2", "P3"]
+        },
+        "status": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "source_criterion_id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source_reference": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mapped_requirement_ids": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmpty"
+          }
+        },
+        "blocker": {
+          "$ref": "#/$defs/blocker"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "PASS" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["FAIL", "PARTIAL", "BLOCKED", "NOT_TESTED", "NOT_APPLICABLE", "REMOVED_BY_USER"] }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["blocker"]
+          }
+        }
+      ]
+    },
+    "sourceCriterion": {
+      "$ref": "#/$defs/criterion",
+      "required": ["source_criterion_id", "source_reference", "source_line", "mapped_requirement_ids"]
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "gate_id"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "USER_INPUT_REQUIRED",
+            "CREDENTIAL_REQUIRED",
+            "LICENSE_REQUIRED",
+            "CERTIFICATE_REQUIRED",
+            "CLOUD_APPLY_REQUIRED",
+            "EXTERNAL_TERMINAL_REQUIRED",
+            "SOURCE_UNAVAILABLE",
+            "INTEGRATION_PENDING",
+            "PRD_UNMAPPED"
+          ]
+        },
+        "gate_id": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "sourceExclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "reason"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonEmpty" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "reason": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "source_reference",
+        "requirement_text",
+        "implementation_location",
+        "verification_method",
+        "criteria"
+      ],
+      "properties": {
+        "requirement_id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source_reference": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "requirement_text": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "implementation_location": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "verification_method": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/criterion"
+          }
+        }
+      }
+    },
+    "verificationStatus": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "PARTIAL",
+        "BLOCKED",
+        "NOT_TESTED",
+        "NOT_APPLICABLE",
+        "REMOVED_BY_USER"
+      ]
+    },
+    "releaseGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate_id", "status", "description", "actual_result"],
+      "properties": {
+        "gate_id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "status": {
+          "enum": ["PASS", "FAIL", "BLOCKED", "NOT_TESTED"]
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "actual_result": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source_reference": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "blocker": {
+          "$ref": "#/$defs/blocker"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PASS"
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["evidence"],
+            "properties": {
+              "evidence": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["FAIL", "BLOCKED", "NOT_TESTED"] }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["blocker"]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "license": {
+    "schemaVersion": "malformed",
+    "status": "TRIAL",
+    "features": null
+  },
+  "observed_at_ns": "not-a-timestamp",
+  "request_id": "acceptance-fixture-malformed",
+  "entitlement_state": "VERIFIED_ONLINE"
+}

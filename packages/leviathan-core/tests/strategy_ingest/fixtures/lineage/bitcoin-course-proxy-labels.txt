@@ -1,0 +1,2 @@
+Synthetic labels HMM, order-book, and pairs are unverified proxies.
+Reuse rights for the source code are unverified; do not copy the code.

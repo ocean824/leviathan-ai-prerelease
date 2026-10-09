@@ -1,0 +1,10 @@
+{
+  "source_run_id": "bt005-exact-returns-v1",
+  "bt003_result_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "observations": [
+    {"index": 0, "return_value": "0.10", "order_arrival_ns": 100},
+    {"index": 1, "return_value": "0.20", "order_arrival_ns": 200},
+    {"index": 2, "return_value": "-0.10", "order_arrival_ns": 300},
+    {"index": 3, "return_value": "0.30", "order_arrival_ns": 400}
+  ]
+}

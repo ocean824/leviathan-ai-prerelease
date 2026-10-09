@@ -1,0 +1,141 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const { test } = require("node:test");
+const { clearOtpauthQr, renderOtpauthQr } = require("../shell/qr.js");
+
+// Static matrices generated independently with Python qrcode 7.4.2,
+// byte mode, ECC M, border 0. These vectors are checked in, not generated at test time.
+const KNOWN_ANSWERS = [{"uri":"otpauth://totp/a?secret=JBSWY3DPEHPK3PXP","version":3,"modules":["11111110000010100001101111111","10000010000001011000101000001","10111010111110100010101011101","10111010100110100110001011101","10111010110110111101101011101","10000010101110010000001000001","11111110101010101010101111111","00000000111010010001000000000","10111110001110111000101111100","10010101011011111111101110011","01000011111000010110100101000","01001100100110010011010101010","01100011010010100000000001110","10101000110010111011101111001","11011111011100011110110011000","01100101101110011010110111010","01101110000000010000010101100","10101001011011011001111111001","10111011001001110110101100000","10010101101101010001001101001","10111110111100111000111110101","00000000101000011001100010111","11111110001010010101101010000","10000010101110111001100010010","10111010111100010000111111111","10111010110101111101100000111","10111010111101011011111010110","10000010010001100001110100010","11111110100111111110000100100"]},{"uri":"otpauth://totp/totp1?secret=JBSWY3DPEHPK3PXP","version":4,"modules":["111111100101011001010101001111111","100000101100101100111011001000001","101110100010111111110110001011101","101110100101111011101111001011101","101110101010101010101010101011101","100000100011000110011101001000001","111111101010101010101010101111111","000000000010010101110101000000000","101010100000000011000110000010010","111101001110011111000100101100001","011100100100001000100010001010101","110111011110011111110110110110000","001111101000001110101011011111000","001011010000011111111011110001001","110101111000100110011100100011011","001101011110011011101111011110001","011110101111110101010101101000110","000010000100110000000010111001000","100000100111101011001100100010111","001110011001110110010001101000001","111000110010110000000000001010011","001001001001011101010101101000011","101011100110111001100000110110111","010101010000010101110101001000010","101110110000011001000100111111110","000000001001001011101100100011000","111111100111001000101011101011111","100000100110001111111110100010001","101110101011100010101010111111001","101110100010010111111010110011011","101110101110010111111101000110101","100000100101111011001110010000010","111111101010111111010101110110111"]},{"uri":"otpauth://totp/Leviathan%3Aresearcher%40example.org?secret=JBSWY3DPEHPK3PXP&issuer=Leviathan&algorithm=SHA256&digits=8&period=30","version":8,"modules":["1111111001011100111000011000001101011100101111111","1000001000011100011000101101011000001111101000001","1011101010001101010011011000000110100001101011101","1011101011111100101101001010001101011101001011101","1011101011100101100001111110011110011100001011101","1000001011111010101100100010100111101110001000001","1111111010101010101010101010101010101010101111111","0000000010111001101001100011000000000110100000000","1011111000011110010011111110000100011011101111100","1000000001000110010100011100111100010100011001110","0011111000100010110110001011001111101010100000001","1010010011010011110101010100101010101100111110001","0101011010000000010000101000000101111010101100111","0011010001010110001110100100011001010100011101010","1011011011010000110011101101000101110010000100111","1000110011101101011110111001010000101100010011010","1001001000001011010011011110100111110001111100110","1110000010101100110101001101110010100001011100010","1111101111100110010101100000101111010110010001011","0110110010100101011010000110101010000100001110001","1000101111001010001101111011011100011001100100111","0111110001110011001101111110011110001101001101000","0000111111001100111000111110100100100010111111011","1101100011000011110010100010101111010110100010000","1111101011001011110111101011000000111110101011111","0111100011011011010101100010011000010100100011010","0111111111011110010100111111111100110111111110101","0100100110110110110101111001000110000010110100011","0101011101001100100100101100011101101101111110111","1111010000100011110001010100111100001101011100100","0011101101110000110100000101010001101010011010011","1100100111001010111001010110001101001110110101001","0001001100011011101011010001011000001101000010101","0010010110011010101101101000001101001001101101010","0000111001001111111001011101011000001110001101011","0010110111110001011101101001110010000110110100011","0001111011110000111100001010000101111111001011100","0011100100011011001101111001001000001101101100000","0100011001101001000000111101100111111110011000001","0111000000011111001001011000001111010000000010001","1110001000000110011011111110010101101011111110101","0000000010011111111100100010111100010101100011000","1111111000000111011000101010011101111010101010101","1000001010110001010011100010111011010001100010000","1011101011010000010000111111001100011100111110101","1011101010111111000110000000011100001101110111101","1011101011110101110010011100000011111110011101000","1000001000101101100111110001010000110001111101001","1111111010110101000010001100100111101111001001111"]}];
+
+class FakeElement {
+  constructor(name) {
+    this.name = name;
+    this.attributes = {};
+    this.children = [];
+  }
+
+  setAttribute(name, value) {
+    this.attributes[name] = String(value);
+  }
+
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+}
+
+function withFakeDocument(callback) {
+  const previous = global.document;
+  global.document = {
+    createElementNS(_namespace, name) {
+      return new FakeElement(name);
+    },
+  };
+  try {
+    callback();
+  } finally {
+    if (previous === undefined) delete global.document;
+    else global.document = previous;
+  }
+}
+
+function moduleRows(svg) {
+  const [, , viewWidth, viewHeight] = svg.attributes.viewBox.split(" ").map(Number);
+  assert.equal(viewWidth, viewHeight);
+  const size = viewWidth - 8;
+  const matrix = Array.from({ length: size }, () => Array(size).fill("0"));
+  const path = svg.children.find((child) => child.name === "path");
+  assert.ok(path);
+  for (const match of path.attributes.d.matchAll(/M(\d+),(\d+)h1v1h-1z/g)) {
+    const x = Number(match[1]) - 4;
+    const y = Number(match[2]) - 4;
+    assert.ok(x >= 0 && x < size && y >= 0 && y < size);
+    assert.equal(matrix[y][x], "0", "path must not draw a module twice");
+    matrix[y][x] = "1";
+  }
+  return matrix.map((row) => row.join(""));
+}
+
+function fakeContainer() {
+  return {
+    children: [],
+    replaceChildren(...children) {
+      this.children = children;
+    },
+  };
+}
+
+test("renders the independent byte-mode ECC-M known-answer matrices", () => {
+  withFakeDocument(() => {
+    for (const vector of KNOWN_ANSWERS) {
+      const container = fakeContainer();
+      assert.equal(renderOtpauthQr(container, vector.uri), true);
+      assert.equal(container.children.length, 1);
+      const [svg] = container.children;
+      assert.equal(svg.name, "svg");
+      assert.equal(svg.attributes.role, "img");
+      assert.equal(svg.attributes["aria-label"], "Authenticator setup QR code");
+      assert.equal(Number(svg.attributes.viewBox.split(" ")[2]) - 8, vector.version * 4 + 17);
+      assert.deepEqual(moduleRows(svg), vector.modules);
+    }
+  });
+});
+
+test("rejects invalid or oversized enrollment URIs without changing the container", () => {
+  withFakeDocument(() => {
+    const container = fakeContainer();
+    const sentinel = new FakeElement("sentinel");
+    container.children = [sentinel];
+    for (const uri of [
+      "https://example.invalid/totp?secret=JBSWY3DPEHPK3PXP",
+      "otpauth://hotp/a?secret=JBSWY3DPEHPK3PXP",
+      "otpauth://totp/a?secret=not-a-base32-secret",
+      `otpauth://totp/a?secret=JBSWY3DPEHPK3PXP&note=${"x".repeat(4096)}`,
+    ]) {
+      assert.equal(renderOtpauthQr(container, uri), false);
+      assert.deepEqual(container.children, [sentinel]);
+    }
+  });
+});
+
+test("clears only the dedicated QR container on enrollment confirmation", () => {
+  const container = fakeContainer();
+  container.children = [new FakeElement("svg")];
+  clearOtpauthQr(container);
+  assert.deepEqual(container.children, []);
+});
+
+test("does not write enrollment material to storage or emit logs", () => {
+  withFakeDocument(() => {
+    const secret = "JBSWY3DPEHPK3PXP";
+    const uri = `otpauth://totp/a?secret=${secret}`;
+    const container = fakeContainer();
+    const savedLocalStorage = global.localStorage;
+    const savedSessionStorage = global.sessionStorage;
+    const savedLog = console.log;
+    const savedError = console.error;
+    let storageWrites = 0;
+    let logCalls = 0;
+    global.localStorage = { setItem() { storageWrites += 1; } };
+    global.sessionStorage = { setItem() { storageWrites += 1; } };
+    console.log = () => { logCalls += 1; };
+    console.error = () => { logCalls += 1; };
+    try {
+      assert.equal(renderOtpauthQr(container, uri), true);
+      assert.equal(JSON.stringify(container.children).includes(uri), false);
+      assert.equal(JSON.stringify(container.children).includes(secret), false);
+      assert.equal(storageWrites, 0);
+      assert.equal(logCalls, 0);
+      clearOtpauthQr(container);
+      assert.deepEqual(container.children, []);
+    } finally {
+      if (savedLocalStorage === undefined) delete global.localStorage;
+      else global.localStorage = savedLocalStorage;
+      if (savedSessionStorage === undefined) delete global.sessionStorage;
+      else global.sessionStorage = savedSessionStorage;
+      console.log = savedLog;
+      console.error = savedError;
+    }
+  });
+});

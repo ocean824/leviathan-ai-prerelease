@@ -1,0 +1,47 @@
+{
+  "as_of_ns": 1000,
+  "equity": {
+    "account_id": "account-demo-001",
+    "state_event_id": "event-state-001",
+    "broker_source_id": "synthetic-broker-001",
+    "equity": "10000",
+    "buying_power": "10000",
+    "event_ns": 990,
+    "received_ns": 995
+  },
+  "payoff": {
+    "strategy_id": "strategy-demo",
+    "win_probability": "0.6",
+    "win_payoff": "1",
+    "loss_payoff": "1",
+    "sample_count": 100,
+    "uncertainty_fraction": "0",
+    "source_id": "synthetic-payoff-001",
+    "revision": "payoff-v1",
+    "event_ns": 990,
+    "received_ns": 995,
+    "validation_status": "VALIDATED"
+  },
+  "correlations": [
+    {
+      "instrument_id": "ES-202612",
+      "cluster_id": "equity-index",
+      "source_id": "synthetic-correlation-001",
+      "revision": "correlation-v1",
+      "event_ns": 990,
+      "received_ns": 995,
+      "validation_status": "VALIDATED"
+    }
+  ],
+  "policy": {
+    "revision": "sizing-policy-v1",
+    "account_id": "account-demo-001",
+    "strategy_id": "strategy-demo",
+    "effective_from_ns": 0,
+    "effective_until_ns": 1000000,
+    "kelly_fraction_cap": "0.5",
+    "portfolio_heat_fraction_cap": "0.5",
+    "cluster_heat_fraction_cap": "0.5",
+    "lot_step": "1"
+  }
+}

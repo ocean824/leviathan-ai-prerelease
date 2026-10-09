@@ -1,0 +1,16 @@
+{
+  "purpose": "Small hand-checkable samples for linear interpolation and the strict alert boundary.",
+  "minimum_sessions_per_cell": 40,
+  "session_lookback": 60,
+  "band_values": ["0", "0.01", "0.02", "0.03", "0.04"],
+  "linear_p20": "0.008",
+  "linear_p80": "0.032",
+  "strict_alert_value_equal_to_p80": "0.032",
+  "alert_value_above_p80": "0.0321",
+  "minimum_one_minute_bars_per_hour": 30,
+  "synthetic_hour_duration_minutes": 30,
+  "hour_is_final_only_after_calendar_hour_end": true,
+  "realized_volatility_returns": ["0", "0.01", "-0.01"],
+  "realized_volatility_sample_std": "0.01",
+  "realized_volatility_annualized": false
+}

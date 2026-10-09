@@ -1,0 +1,19 @@
+name = "leviathan-licensing-worker"
+main = "src/worker/compose.ts"
+compatibility_date = "2026-10-07"
+compatibility_flags = ["nodejs_compat"]
+
+# Required runtime bindings; provide secrets with `wrangler secret put`, never here.
+# DATABASE_URL (secret) or HYPERDRIVE (Hyperdrive binding) must be configured.
+# STRIPE_SECRET_KEY (secret), STRIPE_WEBHOOK_SECRET (secret), STRIPE_PRICE_ID (var)
+# SIGNUP_SUCCESS_URL (var, HTTPS only), SIGNUP_CANCEL_URL (var, HTTPS only)
+# ADMIN_SESSION_TTL_S (var), USER_SESSION_TTL_S (var), CAPS_APPROVED (var)
+# LICENSE_SIGNING_KEY_ID (var), LICENSE_SIGNING_PRIVATE_KEY_PKCS8 (secret, base64 PKCS#8)
+# LICENSE_VERIFY_PUBLIC_KEY_JWK (var, public ES256 JWK)
+# INTERNAL_SERVICE_TOKEN (secret; service-binding internal device verification only)
+# ADMIN_TOTP_ENCRYPTION_KEY (secret; base64 encoding of exactly 32 random bytes)
+
+[vars]
+ADMIN_SESSION_TTL_S = "900"
+USER_SESSION_TTL_S = "900"
+CAPS_APPROVED = "false"

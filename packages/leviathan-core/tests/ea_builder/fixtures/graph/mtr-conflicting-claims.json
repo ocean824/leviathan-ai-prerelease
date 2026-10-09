@@ -1,0 +1,12 @@
+{
+  "hazards": ["conflicting_grid_variants", "failed_oos", "latency_sensitive_loss"],
+  "source_rights": "verified",
+  "source_asset_kind": "source_code",
+  "source_id": "synthetic-mtr",
+  "source_version": 1,
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "unresolved_claims": ["CAND-10"],
+  "reviewed_rules": false,
+  "risk_policy_hash": null,
+  "live_order_mode": false
+}

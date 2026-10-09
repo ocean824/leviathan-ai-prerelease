@@ -1,0 +1,15 @@
+{
+  "version": "2.4.0",
+  "notes": "Synthetic admin release for acceptance testing.",
+  "pub_date": "2026-10-02T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://downloads.example.test/releases/2.4.0/admin-windows-x86_64.msi",
+      "signature": "synthetic-signature-admin-windows"
+    },
+    "darwin-aarch64": {
+      "url": "https://downloads.example.test/releases/2.4.0/admin-darwin-aarch64.app.tar.gz",
+      "signature": "synthetic-signature-admin-darwin"
+    }
+  }
+}

@@ -1,0 +1,2 @@
+Synthetic preset exposes period=20 and threshold=1.5 only.
+The signal algorithm is unknown; do not infer entry or exit rules.

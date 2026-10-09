@@ -1,0 +1,12 @@
+{
+  "hazards": ["parameter_shape_only", "unknown_signal_logic"],
+  "source_rights": "verified",
+  "source_asset_kind": "parameter_only",
+  "source_id": "synthetic-kinnobot",
+  "source_version": 1,
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "unresolved_claims": ["CAND-08"],
+  "reviewed_rules": false,
+  "risk_policy_hash": null,
+  "live_order_mode": false
+}

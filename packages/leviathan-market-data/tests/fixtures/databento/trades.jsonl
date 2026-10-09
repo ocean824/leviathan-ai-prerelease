@@ -1,0 +1,2 @@
+{"publisher_id":42,"instrument_id":7001,"rtype":0,"ts_event":1770000000000000000,"ts_recv":1770000000000000100,"sequence":17,"price":101250000000,"size":2,"side":"B","action":"T","flags":0,"ts_in_delta":0}
+{"publisher_id":42,"instrument_id":7001,"rtype":0,"ts_event":1770000000000000200,"ts_recv":1770000000000000300,"sequence":24,"price":101260000000,"size":3,"side":"A","action":"T","flags":1,"ts_in_delta":2}

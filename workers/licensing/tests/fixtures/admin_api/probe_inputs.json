@@ -1,0 +1,22 @@
+{
+  "now_utc_ns": "1800000000000000000",
+  "owner_email": "owner@lic-admin.example.test",
+  "owner_password": "synthetic-login-password-not-a-secret",
+  "wrong_password": "synthetic-wrong-password-canary",
+  "owner_totp": "482915",
+  "wrong_totp": "135790",
+  "device_id": "device-admin-test-1",
+  "other_device_id": "device-admin-test-2",
+  "session_token": "synthetic-admin-session-token-for-tests-only-0123456789",
+  "bad_login_canary": "synthetic-password-canary-do-not-echo-92731",
+  "org_id": "org-admin-test-1",
+  "other_org_id": "org-admin-test-2",
+  "owner_user_id": "user-admin-owner-1",
+  "subscription_id": "subscription-admin-1",
+  "user_id": "user-admin-target-1",
+  "device_target_id": "device-target-1",
+  "plan_id": "plan-synthetic-basic",
+  "term_start_utc_ns": "1799999999000000000",
+  "term_end_utc_ns": "1800003600000000000",
+  "seats": "5"
+}

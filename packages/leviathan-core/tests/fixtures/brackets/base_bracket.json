@@ -1,0 +1,17 @@
+﻿{
+  "bracket_id": "bracket-demo-001",
+  "parent_request_digest": "sha256:parent-demo-001",
+  "account_id": "account-demo-001",
+  "environment": "paper",
+  "instrument_id": "ES-202612",
+  "side": "BUY",
+  "entry_quantity": "10",
+  "take_profit_price": "101.00",
+  "stop_loss_price": "98.00",
+  "oco_mode": "SYNTHETIC",
+  "tick_size": "0.25",
+  "lot_size": "1",
+  "tif": "DAY",
+  "policy_revision": "bracket-policy-v1",
+  "oco_group_id": "oco-demo-001"
+}

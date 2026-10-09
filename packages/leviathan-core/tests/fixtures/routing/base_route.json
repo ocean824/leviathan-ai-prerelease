@@ -1,0 +1,112 @@
+﻿{
+  "parent_request_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "account_id": "account-demo-001",
+  "instrument_id": "ES-202612",
+  "instrument_mapping_id": "map-es-202612-v1",
+  "mapping_valid_from_ns": 0,
+  "mapping_valid_until_ns": 1000000,
+  "side": "BUY",
+  "quantity": "7",
+  "limit_price": "101",
+  "lot_size": "1",
+  "tick_size": "0.25",
+  "multiplier": "50",
+  "allowed_venues": [
+    "VENUE-A",
+    "VENUE-B",
+    "VENUE-C"
+  ],
+  "venue_order": [
+    "VENUE-A",
+    "VENUE-B",
+    "VENUE-C"
+  ],
+  "policy_revision": "route-policy-v1",
+  "routing_policy": "best_price",
+  "max_venue_hops": 3,
+  "order_type": "LIMIT",
+  "tif": "DAY",
+  "session_close_ns": 200000,
+  "hard_slippage_bps": "100",
+  "latency_budget_ms": "10",
+  "decision_time_ns": 100000,
+  "max_quote_age_ns": 5000,
+  "max_ping_age_ns": 5000,
+  "max_reconciliation_age_ns": 5000,
+  "max_slice_qty": "7",
+  "depth_factor": "0.5",
+  "venue_quotes": [
+    {
+      "venue_id": "VENUE-A",
+      "bid": "99",
+      "ask": "100",
+      "bid_depth": "10",
+      "ask_depth": "10",
+      "event_time_ns": 99000,
+      "receive_time_ns": 99500,
+      "health": "HEALTHY",
+      "permission": true,
+      "fee_bps": "0",
+      "historical_slippage_bps": "0",
+      "ping_ms": "1",
+      "ping_time_ns": 99500,
+      "lot_size": "1",
+      "tick_size": "0.25",
+      "mapped_instrument_id": "ES-202612",
+      "supported_order_types": [
+        "LIMIT"
+      ],
+      "supported_tifs": [
+        "DAY"
+      ]
+    },
+    {
+      "venue_id": "VENUE-B",
+      "bid": "99",
+      "ask": "100",
+      "bid_depth": "10",
+      "ask_depth": "10",
+      "event_time_ns": 99000,
+      "receive_time_ns": 99500,
+      "health": "HEALTHY",
+      "permission": true,
+      "fee_bps": "0",
+      "historical_slippage_bps": "0",
+      "ping_ms": "1",
+      "ping_time_ns": 99500,
+      "lot_size": "1",
+      "tick_size": "0.25",
+      "mapped_instrument_id": "ES-202612",
+      "supported_order_types": [
+        "LIMIT"
+      ],
+      "supported_tifs": [
+        "DAY"
+      ]
+    },
+    {
+      "venue_id": "VENUE-C",
+      "bid": "99",
+      "ask": "100",
+      "bid_depth": "10",
+      "ask_depth": "20",
+      "event_time_ns": 99000,
+      "receive_time_ns": 99500,
+      "health": "HEALTHY",
+      "permission": true,
+      "fee_bps": "0",
+      "historical_slippage_bps": "0",
+      "ping_ms": "1",
+      "ping_time_ns": 99500,
+      "lot_size": "1",
+      "tick_size": "0.25",
+      "mapped_instrument_id": "ES-202612",
+      "supported_order_types": [
+        "LIMIT"
+      ],
+      "supported_tifs": [
+        "DAY"
+      ]
+    }
+  ]
+}

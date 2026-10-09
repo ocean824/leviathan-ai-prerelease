@@ -1,0 +1,87 @@
+{
+  "schema_version": "leviathan.workload/1",
+  "profile_kind": "synthetic",
+  "name": "synthetic-v1-local-unpaced",
+  "provenance": {
+    "uri": "urn:leviathan:proposal:C-103-workload-benchmark-v0.3",
+    "sha256": "41c0bc019e05444cb233680189dc2f86d0264d8f81080689e2a1a587db8c3442",
+    "owner": "C-103 workload worker",
+    "date": "2026-09-30"
+  },
+  "seed": 103,
+  "run_duration_seconds": 2,
+  "warmup_seconds": 0.1,
+  "traffic": {
+    "event_count": 100000,
+    "event_rate_per_second": 50000,
+    "mix": {"quote": 0.4, "trade": 0.3, "book_delta": 0.2, "status": 0.04, "reference": 0.03, "corporate_action": 0.01, "news": 0.02},
+    "payload_bytes": {
+      "quote": {"p50": 256, "p99": 512, "max": 1024},
+      "trade": {"p50": 256, "p99": 512, "max": 1024},
+      "book_delta": {"p50": 256, "p99": 512, "max": 1024},
+      "status": {"p50": 256, "p99": 512, "max": 1024},
+      "reference": {"p50": 256, "p99": 512, "max": 1024},
+      "corporate_action": {"p50": 256, "p99": 512, "max": 1024},
+      "news": {"p50": 256, "p99": 512, "max": 1024}
+    },
+    "instruments": 64,
+    "venues": ["SIM-X", "SIM-Y"],
+    "channels": ["primary", "secondary"],
+    "producers": 1,
+    "consumers": 1,
+    "shards": 1,
+    "sustained_multiplier": 1,
+    "burst_multiplier": 2,
+    "burst_duration_seconds": 0.1
+  },
+  "disorder": {
+    "duplicate_ratio": 0.01,
+    "late_ratio": 0.005,
+    "lateness_ms": {"p50": 250, "p99": 1000, "max": 2000},
+    "late_policy": "reject",
+    "late_threshold_ms": 200,
+    "gap_ratio": 0.001,
+    "gap_size": 1,
+    "declared_intentional_sequence_gaps": true,
+    "sequence_policy": "strict_declared_gaps",
+    "clock_skew_ms": {"p50": 0, "p99": 1, "max": 2},
+    "timezone_utc_encoding": "unix_ns_utc"
+  },
+  "delivery": {
+    "stage_name": "local_parse_dedupe_to_in_process_ack",
+    "backpressure_policy": "block",
+    "fifo_reorder_window_events": 0,
+    "queue_capacity": 256,
+    "loss_policy": "count_unacked",
+    "dedupe_key": "event_id",
+    "ack_boundary": "in_process_consumer",
+    "durability_requirement": "none",
+    "retry_rule": "none",
+    "restart_rule": "new_run"
+  },
+  "storage_read": {
+    "retention_hot_days": 1,
+    "retention_warm_days": 30,
+    "retention_cold_days": 365,
+    "write_read_ratio": 100,
+    "query_mix": {"point": 0.5, "range": 0.3, "aggregate": 0.2},
+    "batch_max_events": 1,
+    "batch_max_wait_ms": 0,
+    "read_concurrency": 0,
+    "snapshot_restart_load": "none in measured stage",
+    "compression": "none",
+    "object_size_bytes": 1048576
+  },
+  "hardware": {
+    "os_kernel": "Microsoft Windows 11 Home 10.0.26200",
+    "cpu_model": "Intel(R) Core(TM) i7-14650HX",
+    "cpu_logical_count": 24,
+    "ram_bytes": 17179869184,
+    "disk_type": "NVMe MTFDKBA1T0QGN-1BN1AABGA",
+    "filesystem": "NTFS",
+    "process_count": 1,
+    "runtime_version": "CPython 3.14.4 (uv environment)",
+    "power_policy": "not measured",
+    "dataset_representative": false
+  }
+}

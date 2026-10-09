@@ -1,0 +1,18 @@
+{
+  "calendar": "synthetic-nys-session-windows",
+  "timezone_context": "America/New_York; UTC boundaries shift after 2024 spring DST",
+  "sessions": [
+    {
+      "venue": "XNYS",
+      "session_date": "2024-03-08",
+      "open_ns": 1709908200000000000,
+      "close_ns": 1709931600000000000
+    },
+    {
+      "venue": "XNYS",
+      "session_date": "2024-03-11",
+      "open_ns": 1710163800000000000,
+      "close_ns": 1710187200000000000
+    }
+  ]
+}

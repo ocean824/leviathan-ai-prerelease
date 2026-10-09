@@ -1,0 +1,3 @@
+Risk rule: stop if account drawdown reaches the stated limit.
+Enter when the short average crosses above the long average.
+Parameter only: lookback=20.

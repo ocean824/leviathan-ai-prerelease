@@ -1,0 +1,17 @@
+﻿{
+  "instrument_id": "SYNTH-X",
+  "calendar_version": "test-calendar-v1",
+  "asof_ns": 300,
+  "window_start_ns": 100,
+  "window_end_ns": 300,
+  "min_notional": "100",
+  "min_lit_volume": "10",
+  "dp_prints": [
+    {"native_id": "dp-1", "event_ns": 120, "published_ns": 121, "available_ns": 122, "price": "10.25", "size": "10", "side": "B"},
+    {"native_id": "dp-future", "event_ns": 250, "published_ns": 301, "available_ns": 301, "price": "999", "size": "999", "side": "S"}
+  ],
+  "lit_trades": [
+    {"native_id": "lit-1", "event_ns": 110, "published_ns": 111, "available_ns": 112, "price": "10", "size": "10", "is_off_exchange": false},
+    {"native_id": "trf-lit", "event_ns": 115, "published_ns": 116, "available_ns": 117, "price": "100", "size": "100", "is_off_exchange": true}
+  ]
+}

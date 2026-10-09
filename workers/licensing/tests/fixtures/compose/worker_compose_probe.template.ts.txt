@@ -1,0 +1,721 @@
+import { afterAll, describe, expect, it, vi } from "vitest";
+import worker, { composeLicenseWorkerV1 } from "../src/worker/compose.js";
+import {
+  decryptTotpSecretV1,
+  encryptTotpSecretV1,
+  hashPasswordPbkdf2V1,
+  verifyPasswordPbkdf2V1,
+  verifyTotpStepV1,
+  createNeonAdminAdapterV1,
+  type PgDriverV1,
+} from "../src/adapters/neon_admin.js";
+import { createNeonSignupAdapterV1 } from "../src/adapters/neon_signup.js";
+import type { PgQueryV1 } from "../src/db/repository.js";
+import { canonicalLicenseSnapshotV1 } from "../src/entitlement/decision.js";
+import { applyMigrationsV1 } from "../scripts/apply_migrations.mjs";
+
+const forbiddenCredential = "synthetic-credential-never-echo-9137";
+const originalFetch = globalThis.fetch;
+const networkFetch = vi.fn(async () => {
+  throw new Error("unexpected real network request");
+});
+vi.stubGlobal("fetch", networkFetch);
+
+type DbRow = Record<string, unknown>;
+interface DbEvent {
+  readonly sql: string;
+  readonly params: readonly unknown[];
+  readonly transactionId: number | null;
+}
+
+class MemoryPgDriver implements PgDriverV1 {
+  events: DbEvent[] = [];
+  audits: unknown[][] = [];
+  organizations: Array<Record<string, unknown>> = [];
+  users: Array<Record<string, unknown>> = [];
+  subscriptions: Array<Record<string, unknown>> = [];
+  revisions: Array<Record<string, unknown>> = [];
+  sessions: Array<{ tokenDigest: unknown; orgId: unknown; userId: unknown;
+    deviceId: unknown; issuedAt: unknown; expiresAt: unknown; kind: string;
+    sessionId: unknown; revokedAt: unknown }> = [];
+  devices: Array<Record<string, unknown>> = [];
+  enrollments = new Map<string, { org_id: string; user_id: string;
+    device_id: string; expires_at_utc_ns: string; confirmed_at_utc_ns: string | null }>();
+  eventIds = new Set<string>();
+  pending: Array<Record<string, unknown>> = [];
+  owner: DbRow | null = null;
+  deviceActive = true;
+  subscription: DbRow = {
+    subscription_id: "lic_acceptance_001", revision: "7", status: "ACTIVE",
+    term_start_utc_ns: "1700000000000000000", term_end_utc_ns: "2000000000000000000",
+    features: { desktop_app: true }, limits: { api_rate_limit_rps: "10" },
+  };
+  failAudit = false;
+  commits = 0;
+  rollbacks = 0;
+  private nextTransactionId = 1;
+  private activeTransaction: number | null = null;
+
+  async query<Row>(sql: string, params: readonly unknown[] = []): Promise<{ rows: Row[] }> {
+    return this.execute<Row>(sql, params, null);
+  }
+
+  async transaction<T>(work: (tx: PgQueryV1) => Promise<T>): Promise<T> {
+    const snapshot = {
+      audits: structuredClone(this.audits), sessions: structuredClone(this.sessions),
+      enrollments: structuredClone(this.enrollments), eventIds: structuredClone(this.eventIds),
+      pending: structuredClone(this.pending), owner: structuredClone(this.owner),
+      organizations: structuredClone(this.organizations), users: structuredClone(this.users),
+      subscriptions: structuredClone(this.subscriptions), revisions: structuredClone(this.revisions),
+      devices: structuredClone(this.devices),
+    };
+    const transactionId = this.nextTransactionId++;
+    this.activeTransaction = transactionId;
+    try {
+      const result = await work({ query: <Row>(sql: string, params: readonly unknown[]) =>
+        this.execute<Row>(sql, params, transactionId) });
+      this.commits += 1;
+      return result;
+    } catch (error) {
+      this.audits = snapshot.audits;
+      this.sessions = snapshot.sessions;
+      this.enrollments = snapshot.enrollments;
+      this.eventIds = snapshot.eventIds;
+      this.pending = snapshot.pending;
+      this.owner = snapshot.owner;
+      this.organizations = snapshot.organizations;
+      this.users = snapshot.users;
+      this.subscriptions = snapshot.subscriptions;
+      this.revisions = snapshot.revisions;
+      this.devices = snapshot.devices;
+      this.rollbacks += 1;
+      throw error;
+    } finally {
+      this.activeTransaction = null;
+    }
+  }
+
+  private async execute<Row>(sql: string, params: readonly unknown[], transactionId: number | null): Promise<{ rows: Row[] }> {
+    this.events.push({ sql, params: structuredClone(params), transactionId });
+    const normalized = sql.replace(/\s+/g, " ").trim().toUpperCase();
+    if (normalized.includes("INSERT INTO LICENSING_AUDIT_EVENTS") && this.failAudit) {
+      throw new Error("synthetic audit insert failure");
+    }
+    let rows: DbRow[] = [];
+    if (normalized.startsWith("INSERT INTO LICENSING_ORGANIZATIONS")) {
+      const organization = { org_id: String(params[0]), active: params[1], display_name: params[2] ?? null };
+      this.organizations.push(organization);
+      if (normalized.includes("RETURNING")) rows = [organization];
+    } else if (normalized.startsWith("INSERT INTO LICENSING_USERS")) {
+      const user = { org_id: params[0], user_id: params[1], email: params[2], role_id: "owner",
+        password_hash_pbkdf2: null, active: true, owner: true, totp_enrolled: false,
+        created_at_utc_ns: params[3] };
+      this.users.push(user);
+    } else if (normalized.startsWith("INSERT INTO LICENSING_DEVICES")) {
+      this.devices.push({ device_id: params[0], org_id: params[1], user_id: params[2], status: "ACTIVE" });
+    } else if (normalized.startsWith("INSERT INTO LICENSING_SUBSCRIPTIONS")) {
+      this.subscriptions.push({ org_id: params[0], subscription_id: params[1], revision: "1",
+        status: params[2] ?? "ACTIVE", term_start_utc_ns: "1700000000000000000",
+        term_end_utc_ns: "2000000000000000000", seat_limit: "10" });
+      if (normalized.includes("RETURNING")) rows = [{ revision: "1" }];
+    } else if (normalized.startsWith("INSERT INTO LICENSING_SUBSCRIPTION_REVISIONS")) {
+      const sourceEvent = String(params[10]);
+      if (this.eventIds.has(sourceEvent)) throw new Error("synthetic unique source event violation");
+      this.eventIds.add(sourceEvent);
+      this.revisions.push({ source_event_id: sourceEvent, params: [...params] });
+    } else if (normalized.includes("FROM LICENSING_USERS") && normalized.includes("USER_ID=$1")
+        && normalized.includes("LOWER(EMAIL)")) {
+      if (this.owner && this.owner.user_id === params[0]
+          && String(this.owner.email).toLowerCase() === String(params[1]).toLowerCase()) {
+        rows = [structuredClone(this.owner)];
+      }
+    } else if (normalized.includes("FROM LICENSING_USERS") && normalized.includes("LOWER(EMAIL)")) {
+      if (this.owner && this.owner.email === String(params[0]).toLowerCase()) rows = [structuredClone(this.owner)];
+    } else if (normalized.includes("FROM LICENSING_USERS") && normalized.includes("USER_ID=$2")) {
+      if (this.owner && this.owner.org_id === params[0] && this.owner.user_id === params[1]) rows = [structuredClone(this.owner)];
+    } else if (normalized.includes("FROM LICENSING_USERS") && normalized.includes("USER_ID=$1")) {
+      if (this.owner && this.owner.user_id === params[0]) rows = [structuredClone(this.owner)];
+    } else if (normalized.includes("FROM LICENSING_DEVICES") && normalized.includes("JOIN LICENSING_ORGANIZATIONS")) {
+      if (this.deviceActive && this.subscription.status === "ACTIVE"
+          && this.owner?.org_id === params[1] && this.subscription.subscription_id === params[2]) rows = [{ active: 1 }];
+    } else if (normalized.includes("FROM LICENSING_DEVICES")) {
+      if (this.deviceActive && this.owner?.org_id === params[0] && this.owner?.user_id === params[1]
+          && this.owner?.device_id === params[2]) rows = [{ active: 1 }];
+    } else if (normalized.includes("FROM LICENSING_SUBSCRIPTIONS")) {
+      if (this.owner?.org_id === params[0] || normalized.includes("JOIN LICENSING_ORGANIZATIONS")
+          || this.subscriptions.some((item) => item.org_id === params[0])) {
+        rows = [structuredClone(this.subscription)];
+      }
+    } else if (normalized.includes("FROM LICENSING_ADMIN_SESSIONS") && normalized.includes("SESSION_KIND='TOTP_ENROLLMENT'")) {
+      const session = this.sessions.find((item) => item.tokenDigest === params[0] && item.kind === "TOTP_ENROLLMENT");
+      if (session && session.revokedAt === null) rows = [{ org_id: session.orgId, user_id: session.userId, device_id: session.deviceId,
+        expires_at_utc_ns: String(session.expiresAt), session_id: session.sessionId }];
+    } else if (normalized.includes("FROM LICENSING_TOTP_ENROLLMENTS")) {
+      const enrollment = this.enrollments.get(String(params[0]));
+      if (enrollment && enrollment.confirmed_at_utc_ns === null) rows = [structuredClone(enrollment)];
+    } else if (normalized.startsWith("UPDATE LICENSING_USERS SET TOTP_SECRET_CIPHERTEXT")) {
+      if (this.owner && this.owner.totp_enrolled === false && this.owner.totp_secret_ciphertext == null) {
+        this.owner.totp_secret_ciphertext = params[2];
+        rows = [{ user_id: this.owner.user_id }];
+      }
+    } else if (normalized.startsWith("UPDATE LICENSING_USERS SET TOTP_ENROLLED=TRUE")) {
+      if (this.owner) {
+        this.owner.totp_enrolled = true;
+        this.owner.totp_last_step = params[2];
+        rows = [{ user_id: this.owner.user_id }];
+      }
+    } else if (normalized.startsWith("UPDATE LICENSING_USERS SET TOTP_LAST_STEP")) {
+      if (this.owner && (this.owner.totp_last_step == null
+          || BigInt(String(this.owner.totp_last_step)) < BigInt(String(params[2])))) {
+        this.owner.totp_last_step = params[2];
+        rows = [{ user_id: this.owner.user_id }];
+      }
+    } else if (normalized.startsWith("INSERT INTO LICENSING_ADMIN_SESSIONS")) {
+      const kindMatch = /'((?:ADMIN|USER|TOTP_ENROLLMENT))'/.exec(normalized);
+      this.sessions.push({ tokenDigest: params[1], orgId: params[2], userId: params[3],
+        deviceId: params[4], issuedAt: params[5], expiresAt: params[6], kind: kindMatch?.[1] ?? "ADMIN",
+        sessionId: params[0], revokedAt: null });
+    } else if (normalized.startsWith("UPDATE LICENSING_ADMIN_SESSIONS SET REVOKED_AT_UTC_NS")) {
+      const session = this.sessions.find((item) => item.sessionId === params[0]);
+      if (session) session.revokedAt = params[1];
+      rows = session ? [{ session_id: params[0] }] : [];
+    } else if (normalized.startsWith("INSERT INTO LICENSING_TOTP_ENROLLMENTS")) {
+      this.enrollments.set(String(params[0]), { org_id: String(params[1]), user_id: String(params[2]),
+        device_id: String(params[3]), expires_at_utc_ns: String(params[4]), confirmed_at_utc_ns: null });
+    } else if (normalized.startsWith("UPDATE LICENSING_TOTP_ENROLLMENTS")) {
+      const enrollment = this.enrollments.get(String(params[0]));
+      if (enrollment) enrollment.confirmed_at_utc_ns = String(params[1]);
+    } else if (normalized.startsWith("INSERT INTO LICENSING_AUDIT_EVENTS")) {
+      this.audits.push([...params]);
+    } else if (normalized.startsWith("INSERT INTO LICENSING_PENDING_SIGNUPS")) {
+      this.pending.push({ pending_account_id: params[0], org_id: params[1], owner_email: params[2],
+        owner_user_id: params[3], device_id: params[4], status: "PENDING", idempotency_key: params[5] });
+    } else if (normalized.includes("FROM LICENSING_PENDING_SIGNUPS")) {
+      const pending = this.pending.find((item) => item.pending_account_id === params[0]);
+      if (pending) rows = [structuredClone(pending)];
+    } else if (normalized.includes("FROM LICENSING_SUBSCRIPTION_REVISIONS")
+        && normalized.includes("SOURCE_EVENT_ID")) {
+      if (this.eventIds.has(String(params[0]))) rows = [{ exists: 1 }];
+    }
+    return { rows: rows as Row[] };
+  }
+}
+
+function base32(bytes: Uint8Array): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let accumulator = 0;
+  let bits = 0;
+  let result = "";
+  for (const byte of bytes) {
+    accumulator = (accumulator << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      result += alphabet[(accumulator >> bits) & 31];
+    }
+  }
+  if (bits > 0) result += alphabet[(accumulator << (5 - bits)) & 31];
+  return result;
+}
+
+async function hotp(secretBase32: string, counter: bigint): Promise<string> {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let accumulator = 0;
+  let bits = 0;
+  const seed: number[] = [];
+  for (const char of secretBase32) {
+    accumulator = (accumulator << 5) | alphabet.indexOf(char);
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      seed.push((accumulator >> bits) & 255);
+    }
+  }
+  const message = new Uint8Array(8);
+  let value = counter;
+  for (let index = 7; index >= 0; index -= 1) {
+    message[index] = Number(value & 255n);
+    value >>= 8n;
+  }
+  const key = await crypto.subtle.importKey("raw", new Uint8Array(seed),
+    { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
+  const offset = digest[digest.length - 1]! & 15;
+  const binary = ((digest[offset]! & 127) << 24) | (digest[offset + 1]! << 16)
+    | (digest[offset + 2]! << 8) | digest[offset + 3]!;
+  return String(binary % 1_000_000).padStart(6, "0");
+}
+
+async function body(response: Response): Promise<Record<string, unknown>> {
+  return JSON.parse(await response.text()) as Record<string, unknown>;
+}
+
+function base64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function jsonRequest(path: string, method: string, value: unknown, headers: Record<string, string> = {}): Request {
+  return new Request(`https://worker.example${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(value),
+  });
+}
+
+function installOwner(driver: MemoryPgDriver, passwordHash: string, extra: Partial<DbRow> = {}): void {
+  driver.owner = {
+    org_id: "org-acceptance", user_id: "user-acceptance", email: "owner@example.test",
+    password_hash_pbkdf2: passwordHash, active: true, owner: true, device_id: "device-acceptance",
+    totp_enrolled: false, totp_secret_ciphertext: null, totp_last_step: null,
+    ...extra,
+  };
+}
+
+function decodeB64Url(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)), (char) => char.charCodeAt(0));
+}
+
+function decodeJsonB64Url(value: string): Record<string, unknown> {
+  return JSON.parse(new TextDecoder().decode(decodeB64Url(value))) as Record<string, unknown>;
+}
+
+async function configuredBindings(): Promise<Record<string, string>> {
+  const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true,
+    ["sign", "verify"]);
+  const privateKey = new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey));
+  const publicJwk = await crypto.subtle.exportKey("jwk", keys.publicKey);
+  return {
+    DATABASE_URL: "postgres://synthetic_user:synthetic_pass@localhost:5432/licensing_test",
+    STRIPE_SECRET_KEY: "sk_test_synthetic_compose_001",
+    STRIPE_WEBHOOK_SECRET: "whsec_synthetic_compose_001",
+    STRIPE_PRICE_ID: "price_syntheticcompose001",
+    SIGNUP_SUCCESS_URL: "https://product.example.test/success",
+    SIGNUP_CANCEL_URL: "https://product.example.test/cancel",
+    ADMIN_SESSION_TTL_S: "600",
+    USER_SESSION_TTL_S: "600",
+    CAPS_APPROVED: "false",
+    LICENSE_SIGNING_KEY_ID: "key_compose_acceptance",
+    LICENSE_SIGNING_PRIVATE_KEY_PKCS8: base64(privateKey),
+    LICENSE_VERIFY_PUBLIC_KEY_JWK: JSON.stringify(publicJwk),
+    INTERNAL_SERVICE_TOKEN: "synthetic-internal-service-token-001",
+    ADMIN_TOTP_ENCRYPTION_KEY: base64(new Uint8Array(32).fill(9)),
+  };
+}
+
+const routeCases: Array<{ path: string; method: string }> = [
+  { path: "/v1/admin/license", method: "GET" },
+  { path: "/v1/auth/introspect", method: "POST" },
+  { path: "/v1/admin/accounts", method: "GET" },
+  { path: "/v1/signup/checkout", method: "POST" },
+  { path: "/v1/signup/webhook", method: "POST" },
+  { path: "/v1/auth/session", method: "POST" },
+  { path: "/v1/auth/session/totp/enroll", method: "POST" },
+  { path: "/v1/auth/session/totp/confirm", method: "POST" },
+  { path: "/v1/auth/session", method: "DELETE" },
+  { path: "/v1/internal/device-entitlement/verify", method: "POST" },
+];
+
+function requestFor(path: string, method: string): Request {
+  return new Request(`https://worker.example${path}`, {
+    method,
+    headers: method === "GET" || method === "DELETE"
+      ? undefined : { "Content-Type": "application/json" },
+    body: method === "GET" || method === "DELETE" ? undefined : "{}",
+  });
+}
+
+afterAll(() => {
+  expect(networkFetch).not.toHaveBeenCalled();
+  expect(forbiddenCredential).not.toContain(" ");
+  vi.unstubAllGlobals();
+  expect(globalThis.fetch).toBe(originalFetch);
+});
+
+describe("LIC-WORKER-COMPOSE-001 independent acceptance", () => {
+  it("imports the default Worker and fails every route closed when bindings are absent", async () => {
+    for (const route of routeCases) {
+      const response = await worker.fetch(requestFor(route.path, route.method), {});
+      expect(response.status, route.path).toBe(503);
+      expect((await body(response)).error).toMatchObject({ code: "NOT_CONFIGURED" });
+      expect(response.headers.get("cache-control")).toMatch(/no-store/i);
+    }
+  });
+
+  it("returns NOT_CONFIGURED on every route if any required binding is absent", async () => {
+    const complete = await configuredBindings();
+    const required = Object.keys(complete);
+    for (const missingName of required) {
+      const env = { ...complete };
+      delete env[missingName];
+      const composed = await composeLicenseWorkerV1(env);
+      for (const route of routeCases) {
+        const response = await composed.fetch(requestFor(route.path, route.method));
+        expect(response.status, `${missingName} / ${route.path}`).toBe(503);
+        expect((await body(response)).error).toMatchObject({ code: "NOT_CONFIGURED" });
+      }
+    }
+  });
+
+  it("fails closed for malformed public JWK or private PKCS8 at composition time", async () => {
+    const complete = await configuredBindings();
+    for (const [field, value] of [
+      ["LICENSE_VERIFY_PUBLIC_KEY_JWK", "{"],
+      ["LICENSE_SIGNING_PRIVATE_KEY_PKCS8", "bm90LWEtcGtleQ=="],
+    ] as const) {
+      const env = { ...complete, [field]: value };
+      const composed = await composeLicenseWorkerV1(env);
+      const response = await composed.fetch(requestFor("/v1/auth/session", "POST"));
+      expect(response.status).toBe(503);
+      expect((await body(response)).error).toMatchObject({ code: "NOT_CONFIGURED" });
+    }
+  });
+
+  it("uses bounded PBKDF2-HMAC-SHA-256 credentials with a 16-byte random salt", async () => {
+    const encoded = await hashPasswordPbkdf2V1(forbiddenCredential);
+    const parts = encoded.split("$");
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toBe("pbkdf2-sha256");
+    expect(Number(parts[1])).toBeGreaterThanOrEqual(600_000);
+    expect(atob(parts[2]!).length).toBe(16);
+    expect(atob(parts[3]!).length).toBe(32);
+    expect(await verifyPasswordPbkdf2V1(forbiddenCredential, encoded)).toBe(true);
+    expect(await verifyPasswordPbkdf2V1("synthetic-wrong-password-9137", encoded)).toBe(false);
+    expect(await verifyPasswordPbkdf2V1(forbiddenCredential, null)).toBe(false);
+  });
+
+  it("encrypts TOTP seeds at rest and binds decryption to org and user AAD", async () => {
+    const seed = base32(new TextEncoder().encode("12345678901234567890"));
+    const encryptionKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
+    const ciphertext = await encryptTotpSecretV1(seed, encryptionKey, "org_acceptance", "user_acceptance");
+    expect(ciphertext).toMatch(/^aes256gcm\$[A-Za-z0-9+/]+=*\$[A-Za-z0-9+/]+=*$/);
+    const [, iv, encrypted] = ciphertext.split("$");
+    expect(atob(iv!).length).toBe(12);
+    expect(atob(encrypted!).length).toBeGreaterThan(20);
+    expect(ciphertext).not.toContain(seed);
+    expect(await decryptTotpSecretV1(ciphertext, encryptionKey, "org_acceptance", "user_acceptance"))
+      .toBe(seed);
+    await expect(decryptTotpSecretV1(ciphertext, encryptionKey, "other_org", "user_acceptance"))
+      .rejects.toThrow();
+    await expect(decryptTotpSecretV1(ciphertext, encryptionKey, "org_acceptance", "other_user"))
+      .rejects.toThrow();
+  });
+
+  it("checks RFC 6238 SHA-1 30-second steps, one-step skew, and replay rejection", async () => {
+    const seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    expect(await hotp(seed, 1n)).toBe("287082");
+    expect(await verifyTotpStepV1(seed, await hotp(seed, 0n), 30, null)).toBe(0n);
+    expect(await verifyTotpStepV1(seed, await hotp(seed, 1n), 59, null)).toBe(1n);
+    expect(await verifyTotpStepV1(seed, await hotp(seed, 2n), 30, null)).toBe(2n);
+    expect(await verifyTotpStepV1(seed, await hotp(seed, 3n), 30, null)).toBeNull();
+    expect(await verifyTotpStepV1(seed, await hotp(seed, 1n), 59, 1n)).toBeNull();
+  });
+
+  it("dispatches each configured route family through its handler using only fake ports", async () => {
+    const env = await configuredBindings();
+    const driver = new MemoryPgDriver();
+    const fakeFetch = vi.fn(async () => new Response("{}", { status: 500 }));
+    const composed = await composeLicenseWorkerV1(env, { driver, fetch: fakeFetch });
+    const probes = [
+      { path: "/v1/admin/license", method: "GET", body: undefined, expected: 401 },
+      { path: "/v1/auth/introspect", method: "POST", body: {}, expected: 401 },
+      { path: "/v1/admin/accounts", method: "GET", body: undefined, expected: 401 },
+      { path: "/v1/signup/checkout", method: "POST", body: {}, expected: 400 },
+      { path: "/v1/signup/webhook", method: "POST", body: {}, expected: 400 },
+      { path: "/v1/auth/session", method: "POST", body: {}, expected: 400 },
+      { path: "/v1/auth/session/totp/enroll", method: "POST", body: {}, expected: 400 },
+      { path: "/v1/auth/session/totp/confirm", method: "POST", body: {}, expected: 400 },
+      { path: "/v1/auth/session", method: "DELETE", body: {}, expected: 401 },
+      { path: "/v1/internal/device-entitlement/verify", method: "POST", body: {}, expected: 403 },
+    ];
+    for (const probe of probes) {
+      const request = probe.method === "GET"
+        ? new Request(`https://worker.example${probe.path}`, { method: probe.method })
+        : jsonRequest(probe.path, probe.method, probe.body);
+      const response = await composed.fetch(request);
+      expect(response.status, probe.path).toBe(probe.expected);
+      expect((await body(response)).error?.code).not.toBe("NOT_FOUND");
+    }
+    expect(fakeFetch).not.toHaveBeenCalled();
+  });
+
+  it("delegates nested admin account and session paths to the Admin API envelope", async () => {
+    const env = await configuredBindings();
+    const composed = await composeLicenseWorkerV1(env, { driver: new MemoryPgDriver(), fetch: vi.fn() });
+    const probes = [
+      { path: "/v1/admin/accounts/org-acceptance/subscriptions", method: "GET", body: undefined,
+        status: 401, code: "UNAUTHENTICATED" },
+      { path: "/v1/admin/session/opaque-token", method: "DELETE", body: undefined,
+        status: 404, code: "NOT_FOUND" },
+      { path: "/v1/admin/session/enrollment/confirm", method: "POST", body: {},
+        status: 400, code: "INVALID_REQUEST" },
+    ] as const;
+    for (const probe of probes) {
+      const request = probe.method === "GET" || probe.method === "DELETE"
+        ? new Request(`https://worker.example${probe.path}`, { method: probe.method })
+        : jsonRequest(probe.path, probe.method, probe.body);
+      const response = await composed.fetch(request);
+      const value = await body(response);
+      expect(response.status, probe.path).toBe(probe.status);
+      expect(value.error?.code, probe.path).toBe(probe.code);
+      expect(value).toHaveProperty("request_id");
+      expect(value.code).toBeUndefined();
+    }
+  });
+
+  it("returns one-time TOTP enrollment only for an active un-enrolled admin owner and rejects confirmation replay", async () => {
+    const env = await configuredBindings();
+    const driver = new MemoryPgDriver();
+    const password = "correct horse battery staple";
+    installOwner(driver, await hashPasswordPbkdf2V1(password));
+    const composed = await composeLicenseWorkerV1(env, { driver, fetch: vi.fn() });
+    const login = (pass: string) => jsonRequest("/v1/admin/session", "POST", {
+      owner_email: "owner@example.test", password: pass, device_id: "device-acceptance",
+    });
+
+    const wrongPassword = await composed.fetch(login("incorrect password for owner"));
+    expect(wrongPassword.status).toBe(401);
+    expect((await body(wrongPassword)).error?.code).toBe("AUTHENTICATION_FAILED");
+    expect(driver.owner?.totp_secret_ciphertext).toBeNull();
+
+    driver.owner!.active = false;
+    const inactive = await composed.fetch(login(password));
+    expect(inactive.status).toBe(401);
+    expect((await body(inactive)).data?.otpauth_uri).toBeUndefined();
+    driver.owner!.active = true;
+    driver.owner!.owner = false;
+    const nonOwner = await composed.fetch(login(password));
+    expect(nonOwner.status).toBe(401);
+    expect((await body(nonOwner)).data?.otpauth_uri).toBeUndefined();
+    driver.owner!.owner = true;
+
+    const enrollmentRequired = await composed.fetch(login(password));
+    expect(enrollmentRequired.status).toBe(403);
+    const denial = await body(enrollmentRequired);
+    expect(denial.error?.code).toBe("TOTP_ENROLLMENT_REQUIRED");
+    expect(denial.data?.otpauth_uri).toEqual(expect.stringMatching(/^otpauth:\/\/totp\//));
+    const uri = new URL(String(denial.data?.otpauth_uri));
+    const seed = uri.searchParams.get("secret");
+    expect(seed).toMatch(/^[A-Z2-7]{32,}$/);
+    expect(driver.owner?.totp_secret_ciphertext).toMatch(/^aes256gcm\$/);
+    expect(String(driver.owner?.totp_secret_ciphertext)).not.toContain(seed!);
+    expect(await decryptTotpSecretV1(String(driver.owner?.totp_secret_ciphertext), env.ADMIN_TOTP_ENCRYPTION_KEY!,
+      "org-acceptance", "user-acceptance")).toBe(seed);
+
+    const confirmCode = await hotp(seed!, BigInt(Math.floor(Date.now() / 30_000)));
+    const confirmRequest = () => jsonRequest("/v1/admin/session/enrollment/confirm", "POST", {
+      owner_email: "owner@example.test", password, totp_code: confirmCode,
+    });
+    const confirmed = await composed.fetch(confirmRequest());
+    expect(confirmed.status).toBe(200);
+    expect((await body(confirmed)).data).toMatchObject({ enrolled: true });
+    expect(driver.owner?.totp_enrolled).toBe(true);
+    const replay = await composed.fetch(confirmRequest());
+    expect(replay.status).toBe(401);
+    expect((await body(replay)).error?.code).toBe("AUTHENTICATION_FAILED");
+
+    const enrolledLogin = await composed.fetch(login(password));
+    expect(enrolledLogin.status).toBe(401);
+    const enrolledDenial = await body(enrolledLogin);
+    expect(enrolledDenial.error?.code).toBe("AUTHENTICATION_FAILED");
+    expect(enrolledDenial.data?.otpauth_uri).toBeUndefined();
+    expect(driver.sessions.filter((row) => row.kind === "ADMIN")).toHaveLength(0);
+  }, 30_000);
+
+  it("enrolls TOTP once, stores only ciphertext, then issues a device-bound USER session and signed LIC-001 snapshot", async () => {
+    const env = await configuredBindings();
+    const driver = new MemoryPgDriver();
+    const password = "correct horse battery staple";
+    installOwner(driver, await hashPasswordPbkdf2V1(password));
+    const composed = await composeLicenseWorkerV1(env, { driver, fetch: vi.fn() });
+    const loginBody = { email: "owner@example.test", password, device_id: "device-acceptance" };
+
+    const bootstrap = await composed.fetch(jsonRequest("/v1/auth/session", "POST", loginBody));
+    expect(bootstrap.status, await bootstrap.clone().text()).toBe(200);
+    expect((await body(bootstrap)).data).toMatchObject({ totp_state: "ENROLLMENT_REQUIRED" });
+    expect(driver.sessions.filter((row) => row.kind === "USER")).toHaveLength(0);
+
+    const enrolled = await composed.fetch(jsonRequest("/v1/auth/session/totp/enroll", "POST", loginBody));
+    expect(enrolled.status).toBe(200);
+    const enrollmentData = (await body(enrolled)).data as { otpauth_uri: string };
+    const uri = new URL(enrollmentData.otpauth_uri);
+    const seed = uri.searchParams.get("secret");
+    expect(uri.protocol).toBe("otpauth:");
+    expect(uri.searchParams.get("algorithm")).toBe("SHA1");
+    expect(uri.searchParams.get("period")).toBe("30");
+    expect(seed).toMatch(/^[A-Z2-7]{32,}$/);
+    expect(driver.owner?.totp_secret_ciphertext).toMatch(/^aes256gcm\$/);
+    expect(String(driver.owner?.totp_secret_ciphertext)).not.toContain(seed!);
+    expect(await decryptTotpSecretV1(String(driver.owner?.totp_secret_ciphertext), env.ADMIN_TOTP_ENCRYPTION_KEY!,
+      "org-acceptance", "user-acceptance")).toBe(seed);
+    const enrollmentSession = driver.sessions.find((row) => row.kind === "TOTP_ENROLLMENT");
+    expect(enrollmentSession).toBeDefined();
+    const cookie = enrolled.headers.get("set-cookie");
+    expect(cookie).toMatch(/^auth_enrollment=[^;]+; HttpOnly; Secure; SameSite=Strict/);
+    const nowStep = BigInt(Math.floor(Date.now() / 30_000));
+    const confirmCode = await hotp(seed!, nowStep - 1n);
+    const confirm = await composed.fetch(jsonRequest("/v1/auth/session/totp/confirm", "POST", { code: confirmCode },
+      { Cookie: cookie!.split(";")[0]! }));
+    expect(confirm.status).toBe(200);
+    expect((await body(confirm)).data).toMatchObject({ totp_state: "ENROLLED" });
+    expect(driver.owner?.totp_enrolled).toBe(true);
+    expect(enrollmentSession?.revokedAt).not.toBeNull();
+    const replayConfirm = await composed.fetch(jsonRequest("/v1/auth/session/totp/confirm", "POST", { code: confirmCode },
+      { Cookie: cookie!.split(";")[0]! }));
+    expect(replayConfirm.status).toBe(401);
+
+    const currentCode = await hotp(seed!, nowStep);
+    const sessionResponse = await composed.fetch(jsonRequest("/v1/auth/session", "POST", {
+      ...loginBody, totp_code: currentCode,
+    }));
+    expect(sessionResponse.status).toBe(200);
+    const result = (await body(sessionResponse)).data as Record<string, unknown>;
+    expect(result.totp_state).toBe("ENROLLED");
+    const snapshot = result.license_snapshot as Record<string, unknown>;
+    expect(snapshot).toMatchObject({ orgId: "org-acceptance", deviceId: "device-acceptance",
+      audience: "leviathan-desktop", signingKeyId: "key_compose_acceptance" });
+    const signature = snapshot.signature as { algorithm: string; value: string };
+    expect(signature.algorithm).toBe("ECDSA_P256_SHA256");
+    const publicKey = await crypto.subtle.importKey("jwk", JSON.parse(env.LICENSE_VERIFY_PUBLIC_KEY_JWK!) as JsonWebKey,
+      { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    expect(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, publicKey,
+      decodeB64Url(signature.value), canonicalLicenseSnapshotV1(snapshot as never))).toBe(true);
+    const token = String(result.device_token).split(".");
+    expect(token).toHaveLength(3);
+    expect(decodeJsonB64Url(token[1]!)).toMatchObject({ schema_version: 1, org_id: "org-acceptance",
+      device_id: "device-acceptance", licence_id: "lic_acceptance_001" });
+    expect(result.expires_at_utc_ns).toBeDefined();
+    const userSession = driver.sessions.find((row) => row.kind === "USER");
+    expect(userSession).toBeDefined();
+    expect(BigInt(String(userSession?.expiresAt)) - BigInt(String(userSession?.issuedAt))).toBe(600_000_000_000n);
+    const startCipherWrite = driver.events.find((event) => /UPDATE LICENSING_USERS SET TOTP_SECRET_CIPHERTEXT/i.test(event.sql));
+    const startAuditWrite = driver.events.find((event) => /AUTH\.TOTP\.ENROLLMENT\.START/i.test(event.sql));
+    const confirmUserWrite = driver.events.find((event) => /UPDATE LICENSING_USERS SET TOTP_ENROLLED=TRUE/i.test(event.sql));
+    const confirmAuditWrite = driver.events.find((event) => /AUTH\.TOTP\.ENROLLMENT\.CONFIRM/i.test(event.sql));
+    const loginStepWrite = driver.events.find((event) => /UPDATE LICENSING_USERS SET TOTP_LAST_STEP/i.test(event.sql));
+    const loginSessionWrite = driver.events.find((event) => /INSERT INTO LICENSING_ADMIN_SESSIONS/i.test(event.sql)
+      && /'USER'/i.test(event.sql));
+    const loginAuditWrite = driver.events.find((event) => /AUTH\.SESSION\.CREATE/i.test(event.sql));
+    expect(startCipherWrite?.transactionId).not.toBeNull();
+    expect(startCipherWrite?.transactionId).toBe(startAuditWrite?.transactionId);
+    expect(confirmUserWrite?.transactionId).not.toBeNull();
+    expect(confirmUserWrite?.transactionId).toBe(confirmAuditWrite?.transactionId);
+    expect(loginStepWrite?.transactionId).not.toBeNull();
+    expect(loginStepWrite?.transactionId).toBe(loginSessionWrite?.transactionId);
+    expect(loginStepWrite?.transactionId).toBe(loginAuditWrite?.transactionId);
+  }, 30_000);
+
+  it("denies wrong password, unknown owner, wrong TOTP, and device mismatch without issuing sessions", async () => {
+    const env = await configuredBindings();
+    const driver = new MemoryPgDriver();
+    const password = "correct horse battery staple";
+    const seed = "JBSWY3DPEHPK3PXP";
+    const encrypted = await encryptTotpSecretV1(seed, env.ADMIN_TOTP_ENCRYPTION_KEY!, "org-acceptance", "user-acceptance");
+    installOwner(driver, await hashPasswordPbkdf2V1(password), { totp_enrolled: true, totp_secret_ciphertext: encrypted });
+    const composed = await composeLicenseWorkerV1(env, { driver, fetch: vi.fn() });
+    const base = { email: "owner@example.test", password, device_id: "device-acceptance", totp_code: "000000" };
+    for (const [label, login] of [
+      ["wrong password", { ...base, password: "wrong password for owner" }],
+      ["unknown owner", { ...base, email: "missing@example.test" }],
+      ["wrong code", base],
+      ["device mismatch", { ...base, device_id: "other-device" }],
+    ] as const) {
+      const response = await composed.fetch(jsonRequest("/v1/auth/session", "POST", login));
+      expect(response.status, label).toBe(401);
+      const raw = await response.text();
+      expect(raw).not.toContain(password);
+      expect(raw).not.toContain("wrong password");
+    }
+    expect(driver.sessions.filter((row) => row.kind === "USER")).toHaveLength(0);
+  }, 30_000);
+
+  it("rolls back admin and signup business writes when their audit insert fails", async () => {
+    const driver = new MemoryPgDriver();
+    driver.failAudit = true;
+    const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(5)));
+    const admin = createNeonAdminAdapterV1(driver, key);
+    await expect(admin.store.transaction(async (tx) => {
+      await tx.createOrganization({ org_id: "org-rollback", display_name: "Rollback", active: true, expected_version: "0" });
+      await tx.createOwnerIdentity({ org_id: "org-rollback", user_id: "user-rollback",
+        email: "rollback@example.test", occurred_at_utc_ns: "1700000000000000000" });
+      await tx.appendAudit({ audit_id: "audit-rollback", org_id: "org-rollback", actor_user_id: "admin-1",
+        action: "CREATE", resource_type: "org", resource_id: "org-rollback", occurred_at_utc_ns: "1700000000000000000",
+        outcome: "SUCCEEDED", reason: "", correlation_id: "audit-rollback" });
+    })).rejects.toThrow("synthetic audit insert failure");
+    expect(driver.organizations).toHaveLength(0);
+    expect(driver.users).toHaveLength(0);
+    expect(driver.audits).toHaveLength(0);
+    expect(driver.rollbacks).toBe(1);
+    const adminWrites = driver.events.filter((event) => /INSERT INTO LICENSING_(ORGANIZATIONS|USERS|AUDIT_EVENTS)/i.test(event.sql));
+    expect(new Set(adminWrites.map((event) => event.transactionId)).size).toBe(1);
+
+    const signupDriver = new MemoryPgDriver();
+    signupDriver.failAudit = true;
+    const signup = createNeonSignupAdapterV1(signupDriver,
+      { stripe_secret_key: "sk_test_fixture", stripe_price_id: "price_fixture" }, vi.fn());
+    await expect(signup.pending_signups.createPending({ org_name: "Rollback Org", owner_email: "rollback@example.test",
+      device_id: "device-rollback", idempotency_key: "idem-rollback" })).rejects.toThrow("synthetic audit insert failure");
+    expect(signupDriver.organizations).toHaveLength(0);
+    expect(signupDriver.users).toHaveLength(0);
+    expect(signupDriver.devices).toHaveLength(0);
+    expect(signupDriver.pending).toHaveLength(0);
+    expect(signupDriver.rollbacks).toBe(1);
+    const signupWrites = signupDriver.events.filter((event) => /INSERT INTO LICENSING_(ORGANIZATIONS|USERS|DEVICES|PENDING_SIGNUPS|AUDIT_EVENTS)/i.test(event.sql));
+    expect(new Set(signupWrites.map((event) => event.transactionId)).size).toBe(1);
+    expect(signupWrites.find((event) => /INSERT INTO LICENSING_USERS/i.test(event.sql))?.sql).toMatch(/'owner'/);
+  });
+
+  it("deduplicates webhook events by the LIC-002 source_event_id inside the transaction", async () => {
+    const driver = new MemoryPgDriver();
+    driver.owner = { org_id: "org-webhook", user_id: "user-webhook", email: "webhook@example.test" };
+    driver.pending.push({ pending_account_id: "pending-webhook", org_id: "org-webhook", status: "PENDING",
+      owner_email: "webhook@example.test", device_id: "device-webhook" });
+    const signup = createNeonSignupAdapterV1(driver,
+      { stripe_secret_key: "sk_test_fixture", stripe_price_id: "price_fixture", caps_approved: true }, vi.fn());
+    const event = { event_id: "evt-webhook-unique", event_type: "invoice.paid" as const,
+      event_created_utc_ns: "1700000000000000000", pending_account_id: "pending-webhook", org_id: "org-webhook",
+      subscription_id: "sub-webhook", customer_id: "cus-webhook", status: "ACTIVE" as const,
+      term_start_utc_ns: "1700000000000000000", term_end_utc_ns: "2000000000000000000" };
+    await signup.webhook_transactions.applyVerifiedEvent(event);
+    await expect(signup.webhook_transactions.applyVerifiedEvent(event)).rejects.toThrow("EVENT_REPLAY");
+    expect(driver.eventIds.has("evt-webhook-unique")).toBe(true);
+    expect(driver.revisions.filter((row) => row.source_event_id === "evt-webhook-unique")).toHaveLength(1);
+    expect(driver.rollbacks).toBe(1);
+  });
+
+  it("applies ordered migrations once and does not pass the connection string to SQL or output", async () => {
+    const applied = new Set<string>();
+    const migrationBodies: string[] = [];
+    const queried: string[] = [];
+    const fakePool = {
+      async connect() {
+        return {
+          async query<Row>(sql: string, params: unknown[] = []) {
+            queried.push(sql);
+            const normalized = sql.trim().toUpperCase();
+            if (normalized.startsWith("SELECT 1 FROM SCHEMA_MIGRATIONS")) {
+              return { rows: (applied.has(String(params[0])) ? [{ present: 1 }] : []) as Row[] };
+            }
+            if (normalized.startsWith("INSERT INTO SCHEMA_MIGRATIONS")) {
+              applied.add(String(params[0]));
+              return { rows: [] as Row[] };
+            }
+            if (/^-- LIC-WORKER-COMPOSE-001/i.test(sql.trim())) migrationBodies.push(sql);
+            return { rows: [] as Row[] };
+          },
+          release() {},
+        };
+      },
+      async end() {},
+    };
+    const connectionString = "postgres://synthetic-secret-must-never-be-printed.invalid/db";
+    await applyMigrationsV1({ connectionString, pool: fakePool });
+    const firstRunCount = migrationBodies.length;
+    await applyMigrationsV1({ connectionString, pool: fakePool });
+    expect(firstRunCount).toBe(1);
+    expect(migrationBodies).toHaveLength(firstRunCount);
+    expect([...applied]).toEqual(["001_subscription.sql", "002_no_trial.sql", "003_signup_admin.sql"]);
+    expect(queried.join("\n")).not.toContain(connectionString);
+  });
+
+});

@@ -1,0 +1,37 @@
+{
+  "market": {
+    "project_id": "leviathan-ai",
+    "environment": "paper",
+    "account_id": "synthetic-paper-account-01",
+    "venue": "ALPACA",
+    "instrument_id": "equity-AAPL",
+    "native_contract_id": "asset-AAPL",
+    "side": "BUY",
+    "quantity": "3",
+    "order_type": "MARKET",
+    "time_in_force": "DAY",
+    "client_order_id": "synthetic-client-market-001",
+    "strategy_id": "synthetic-strategy-01",
+    "risk_policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "actor_id": "synthetic-operator-01",
+    "capability": "paper-submit"
+  },
+  "limit": {
+    "project_id": "leviathan-ai",
+    "environment": "paper",
+    "account_id": "synthetic-paper-account-01",
+    "venue": "ALPACA",
+    "instrument_id": "equity-AAPL",
+    "native_contract_id": "asset-AAPL",
+    "side": "BUY",
+    "quantity": "3",
+    "order_type": "LIMIT",
+    "time_in_force": "DAY",
+    "client_order_id": "synthetic-client-limit-001",
+    "strategy_id": "synthetic-strategy-01",
+    "risk_policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "actor_id": "synthetic-operator-01",
+    "capability": "paper-submit",
+    "limit_price": "123.45"
+  }
+}

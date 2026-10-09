@@ -1,0 +1,8 @@
+symbol=EURUSD
+timeframe=M5
+session=UTC_24x5
+sma.fast=5
+sma.slow=20
+entry=cross_above(fast,slow)
+exit=cross_below(fast,slow)
+ema.period=14

@@ -1,0 +1,77 @@
+schema_version: "1"
+port_id: STRAT-HFTCODE-PORT-001
+source_archive:
+  filename: HFTCODE-IBKR-Test-Bots-Career.zip
+  sha256: 1f4ebed80a4e9bdf18892aaa2058139bd10d4fbde4d7355e1e78f2392843d82a
+  extraction_status: text_sources_only
+  execution_status: never_executed
+  license_status: archive_claim_only
+  execution_plumbing: excluded
+bar_contract:
+  clock: UTC_nanoseconds
+  observation: finalized_close
+  ordering: strictly_increasing_timestamp
+  maximum_bars: 10000
+strategies:
+  - strategy_id: BHP_ASX_SMA_10_50
+    instrument_id: BHP.ASX
+    family: sma_crossover
+    source_member: HFTCODE-IBKR-Test-Bots-Career/mar4/BHP_ASX_SMA_Crossover_Bot.py
+    source_sha256: 3105e06ae981f43f3556c63b111952c9d8c6ea0d5ba8cafee03cf8519f858231
+    parameters:
+      fast_period: 10
+      slow_period: 50
+      entry: fast_sma_crosses_above_slow_sma
+      exit: fast_sma_crosses_below_slow_sma_or_risk_threshold
+      stop_loss_fraction: "0.03"
+      profit_target_fraction: "0.05"
+    instrument_quantity: excluded_from_signal_port
+  - strategy_id: NVDA_US_SMA_10_50
+    instrument_id: NVDA.US
+    family: sma_crossover
+    source_member: HFTCODE-IBKR-Test-Bots-Career/mar4/NVDA_SMA_Crossover_Bot.py
+    source_sha256: 8ea97df7aa579d11a88582a74df15dbbf9dd9d85b69223bf8d6a5a4882868db6
+    parameters:
+      fast_period: 10
+      slow_period: 50
+      entry: fast_sma_crosses_above_slow_sma
+      exit: fast_sma_crosses_below_slow_sma_or_risk_threshold
+      stop_loss_fraction: "0.03"
+      profit_target_fraction: "0.05"
+    instrument_quantity: excluded_from_signal_port
+  - strategy_id: EURUSD_RSI14
+    instrument_id: EURUSD
+    family: simple_window_rsi
+    source_member: HFTCODE-IBKR-Test-Bots-Career/mar4/EURUSD_RSI_Forex_Bot.py
+    source_sha256: 838a76eea3fde4a55090c9f11901ac16ec9e75aef839c4542f7bc19e4affd62c
+    parameters:
+      period_changes: 14
+      rsi_method: simple_arithmetic_mean_gains_and_losses
+      enter_long_below: "30"
+      enter_short_above: "70"
+      exit_long_at_or_above: "55"
+      exit_short_at_or_below: "45"
+      pip_size: "0.0001"
+      stop_loss_pips: "50"
+      profit_target_pips: "100"
+    instrument_quantity: excluded_from_signal_port
+  - strategy_id: XAUUSD_BOLLINGER20
+    instrument_id: XAUUSD
+    family: bollinger_breakout
+    source_member: HFTCODE-IBKR-Test-Bots-Career/mar4/XAUUSD_Bollinger_Momentum_Bot.py
+    source_sha256: fa7887400605e4010cfb80ef06ce2ea39de606d42beae4ff0a2e1bfade66ee2f
+    parameters:
+      window: 20
+      standard_deviation_multiplier: "2"
+      standard_deviation: population
+      entry: close_above_upper_or_below_lower_band
+      exit: middle_band_reversion_or_risk_threshold
+      stop_loss_fraction: "0.015"
+      profit_target_fraction: "0.03"
+    instrument_quantity: excluded_from_signal_port
+execution:
+  output_authority: advisory_signal_only
+  order_submission: existing_OMS_with_sovereign_risk_only
+  accepted_order_is_fill: false
+  startup_orders: none
+  close_state: unchanged_until_broker_reconciliation

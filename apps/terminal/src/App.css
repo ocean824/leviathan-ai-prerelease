@@ -1,0 +1,539 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEVIATHAN AI — Operator Terminal
+   Deep-black institutional theme | Gold accents | BB-Terminal lineage
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shell ─────────────────────────────────────────────────────────────────── */
+.terminal-shell {
+  min-height: 100vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.terminal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.75rem 2rem 1.25rem;
+  border-bottom: 1px solid #1f2937;
+}
+
+.terminal-header h1 {
+  margin: 0;
+  font-size: 1.85rem;
+  letter-spacing: 0.35em;
+  color: #d4af37;
+  text-transform: uppercase;
+}
+
+.tagline {
+  color: #4b5563;
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.terminal-badge {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: #4b5563;
+  border: 1px solid #1f2937;
+  padding: 0.25rem 0.6rem;
+  text-transform: uppercase;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+}
+
+/* ── Command Bar ────────────────────────────────────────────────────────────── */
+.command-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 2rem;
+  background: #080c10;
+  border-bottom: 1px solid #1f2937;
+}
+
+.command-bar__prompt {
+  color: #d4af37;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.command-bar__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e5e7eb;
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  caret-color: #d4af37;
+  text-transform: uppercase;
+}
+
+.command-bar__input::placeholder {
+  color: #374151;
+  letter-spacing: 0.08em;
+}
+
+.command-bar__hint {
+  font-size: 0.72rem;
+  color: #f87171;
+  letter-spacing: 0.06em;
+}
+
+/* ── Workspace Tabs ─────────────────────────────────────────────────────────── */
+.workspace-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #1f2937;
+  background: #05070b;
+  padding: 0 2rem;
+  overflow-x: auto;
+}
+
+.workspace-tabs__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-right: 1px solid #1f2937;
+  background: transparent;
+  cursor: pointer;
+  color: #4b5563;
+  font-family: inherit;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.workspace-tabs__tab:first-child {
+  border-left: 1px solid #1f2937;
+}
+
+.workspace-tabs__tab:hover {
+  background: #0d1117;
+  color: #9ca3af;
+}
+
+.workspace-tabs__tab--active {
+  background: #0d1117;
+  color: #d4af37;
+  border-bottom: 2px solid #d4af37;
+}
+
+.workspace-tabs__code {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.workspace-tabs__label {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  opacity: 0.7;
+}
+
+/* ── Workspace Content ──────────────────────────────────────────────────────── */
+.workspace {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1100px;
+}
+
+/* ── Panel ──────────────────────────────────────────────────────────────────── */
+.panel {
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 1.25rem 1.5rem;
+  max-width: 720px;
+}
+
+.panel--full {
+  max-width: 100%;
+}
+
+.panel__heading {
+  margin: 0 0 1rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #6b7280;
+  font-variant: small-caps;
+  border-bottom: 1px solid #111827;
+  padding-bottom: 0.5rem;
+}
+
+.panel__subheading {
+  margin: 1.25rem 0 0.6rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #4b5563;
+  font-variant: small-caps;
+}
+
+/* ── KV Grid ────────────────────────────────────────────────────────────────── */
+.kv-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.kv-grid dt {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.kv-grid dd {
+  margin: 0;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+}
+
+/* ── Status colors ──────────────────────────────────────────────────────────── */
+.status-ok {
+  color: #34d399;
+}
+
+.status-error {
+  color: #f87171;
+}
+
+.muted {
+  color: #4b5563;
+  font-size: 0.82rem;
+}
+
+/* ── Chips ──────────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chip--lg {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.75rem;
+}
+
+.chip--ok {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.chip--error {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.chip--warn {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.chip--sovereign {
+  background: rgba(212, 175, 55, 0.1);
+  color: #d4af37;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.chip--stat {
+  background: #0d1117;
+  color: #9ca3af;
+  border: 1px solid #1f2937;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ── Risk summary ───────────────────────────────────────────────────────────── */
+.risk-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.risk-mode {
+  font-size: 0.78rem;
+  color: #6b7280;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.risk-halt-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.halt-reasons {
+  margin-top: 1rem;
+}
+
+.halt-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.halt-item {
+  font-size: 0.82rem;
+  color: #f87171;
+  letter-spacing: 0.04em;
+}
+
+.halt-bullet {
+  color: #f87171;
+  margin-right: 0.4rem;
+}
+
+.doctrine-line {
+  font-size: 0.78rem;
+  color: #4b5563;
+  letter-spacing: 0.08em;
+  font-style: italic;
+  margin: 0 0 1.25rem;
+  border-left: 2px solid #d4af37;
+  padding-left: 0.75rem;
+}
+
+.policy-table-wrap {
+  margin-top: 1rem;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #4b5563;
+  border-bottom: 1px solid #1f2937;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #0d1117;
+  color: #d1d5db;
+  vertical-align: top;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: #080c10;
+}
+
+.data-table--compact th,
+.data-table--compact td {
+  padding: 0.4rem 0.6rem;
+}
+
+.monospace {
+  font-family: inherit;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.notes-cell {
+  max-width: 260px;
+  white-space: normal;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* ── Outcome badges ─────────────────────────────────────────────────────────── */
+.outcome-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.outcome--win {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.outcome--loss {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.outcome--scratch {
+  background: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.25);
+}
+
+.outcome--blocked {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* ── Pipeline ───────────────────────────────────────────────────────────────── */
+.btn-primary {
+  padding: 0.5rem 1.25rem;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid #d4af37;
+  color: #d4af37;
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-radius: 2px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.16);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pipeline-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.decision-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.decision-direction {
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  color: #e5e7eb;
+  font-weight: 700;
+}
+
+.conf-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: #4b5563;
+  text-transform: uppercase;
+}
+
+.conf-bar {
+  position: relative;
+  height: 10px;
+  background: #0d1117;
+  border: 1px solid #1f2937;
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 320px;
+}
+
+.conf-bar__fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.conf-bar__fill--high {
+  background: #34d399;
+}
+
+.conf-bar__fill--mid {
+  background: #fbbf24;
+}
+
+.conf-bar__fill--low {
+  background: #f87171;
+}
+
+.conf-bar__label {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  color: #e5e7eb;
+  letter-spacing: 0.06em;
+}
+
+.justification {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.justification-text {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+/* ── Help ───────────────────────────────────────────────────────────────────── */
+.fn-code {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #d4af37;
+}

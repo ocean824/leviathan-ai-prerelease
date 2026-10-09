@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:leviathan:workload:1",
+  "title": "Leviathan market data workload profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_kind", "name", "provenance", "seed", "run_duration_seconds", "warmup_seconds", "traffic", "disorder", "delivery", "storage_read", "hardware"],
+  "properties": {
+    "schema_version": {"const": "leviathan.workload/1"},
+    "profile_kind": {"enum": ["synthetic", "acceptance"]},
+    "name": {"type": "string", "minLength": 1},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "seed": {"type": "integer", "minimum": 0},
+    "run_duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "warmup_seconds": {"type": "number", "minimum": 0},
+    "traffic": {"$ref": "#/$defs/traffic"},
+    "disorder": {"$ref": "#/$defs/disorder"},
+    "delivery": {"$ref": "#/$defs/delivery"},
+    "storage_read": {"$ref": "#/$defs/storage_read"},
+    "hardware": {"$ref": "#/$defs/hardware"}
+  },
+  "$defs": {
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["uri", "sha256", "owner", "date"],
+      "properties": {
+        "uri": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "owner": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+      }
+    },
+    "payload_shape": {
+      "type": "object", "additionalProperties": false,
+      "required": ["p50", "p99", "max"],
+      "properties": {
+        "p50": {"type": "integer", "minimum": 64, "maximum": 65536},
+        "p99": {"type": "integer", "minimum": 64, "maximum": 65536},
+        "max": {"type": "integer", "minimum": 64, "maximum": 65536}
+      }
+    },
+    "traffic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_count", "event_rate_per_second", "mix", "payload_bytes", "instruments", "venues", "channels", "producers", "consumers", "shards", "sustained_multiplier", "burst_multiplier", "burst_duration_seconds"],
+      "properties": {
+        "event_count": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "event_rate_per_second": {"type": "number", "exclusiveMinimum": 0},
+        "mix": {"type": "object", "additionalProperties": false, "required": ["quote", "trade", "book_delta", "status", "reference", "corporate_action", "news"], "properties": {"quote": {"type": "number", "minimum": 0, "maximum": 1}, "trade": {"type": "number", "minimum": 0, "maximum": 1}, "book_delta": {"type": "number", "minimum": 0, "maximum": 1}, "status": {"type": "number", "minimum": 0, "maximum": 1}, "reference": {"type": "number", "minimum": 0, "maximum": 1}, "corporate_action": {"type": "number", "minimum": 0, "maximum": 1}, "news": {"type": "number", "minimum": 0, "maximum": 1}}},
+        "payload_bytes": {"type": "object", "additionalProperties": false, "required": ["quote", "trade", "book_delta", "status", "reference", "corporate_action", "news"], "properties": {"quote": {"$ref": "#/$defs/payload_shape"}, "trade": {"$ref": "#/$defs/payload_shape"}, "book_delta": {"$ref": "#/$defs/payload_shape"}, "status": {"$ref": "#/$defs/payload_shape"}, "reference": {"$ref": "#/$defs/payload_shape"}, "corporate_action": {"$ref": "#/$defs/payload_shape"}, "news": {"$ref": "#/$defs/payload_shape"}}},
+        "instruments": {"type": "integer", "minimum": 1},
+        "venues": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "channels": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "producers": {"type": "integer", "minimum": 1},
+        "consumers": {"type": "integer", "minimum": 1},
+        "shards": {"type": "integer", "minimum": 1},
+        "sustained_multiplier": {"type": "number", "exclusiveMinimum": 0},
+        "burst_multiplier": {"type": "number", "minimum": 1},
+        "burst_duration_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "distribution_ms": {"type": "object", "additionalProperties": false, "required": ["p50", "p99", "max"], "properties": {"p50": {"type": "number", "minimum": 0}, "p99": {"type": "number", "minimum": 0}, "max": {"type": "number", "minimum": 0}}},
+    "disorder": {
+      "type": "object", "additionalProperties": false,
+      "required": ["duplicate_ratio", "late_ratio", "lateness_ms", "late_policy", "late_threshold_ms", "gap_ratio", "gap_size", "declared_intentional_sequence_gaps", "sequence_policy", "clock_skew_ms", "timezone_utc_encoding"],
+      "properties": {
+        "duplicate_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "late_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "lateness_ms": {"$ref": "#/$defs/distribution_ms"},
+        "late_policy": {"enum": ["accept", "reject"]},
+        "late_threshold_ms": {"type": "number", "minimum": 0},
+        "gap_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "gap_size": {"type": "integer", "minimum": 1},
+        "declared_intentional_sequence_gaps": {"type": "boolean"},
+        "sequence_policy": {"const": "strict_declared_gaps"},
+        "clock_skew_ms": {"$ref": "#/$defs/distribution_ms"},
+        "timezone_utc_encoding": {"const": "unix_ns_utc"}
+      }
+    },
+    "delivery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage_name", "backpressure_policy", "fifo_reorder_window_events", "queue_capacity", "loss_policy", "dedupe_key", "ack_boundary", "durability_requirement", "retry_rule", "restart_rule"],
+      "properties": {
+        "stage_name": {"const": "local_parse_dedupe_to_in_process_ack"},
+        "backpressure_policy": {"const": "block"},
+        "fifo_reorder_window_events": {"const": 0},
+        "queue_capacity": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "loss_policy": {"const": "count_unacked"},
+        "dedupe_key": {"const": "event_id"},
+        "ack_boundary": {"const": "in_process_consumer"},
+        "durability_requirement": {"const": "none"},
+        "retry_rule": {"const": "none"},
+        "restart_rule": {"const": "new_run"}
+      }
+    },
+    "storage_read": {
+      "type": "object", "additionalProperties": false,
+      "required": ["retention_hot_days", "retention_warm_days", "retention_cold_days", "write_read_ratio", "query_mix", "batch_max_events", "batch_max_wait_ms", "read_concurrency", "snapshot_restart_load", "compression", "object_size_bytes"],
+      "properties": {
+        "retention_hot_days": {"type": "number", "minimum": 0},
+        "retention_warm_days": {"type": "number", "minimum": 0},
+        "retention_cold_days": {"type": "number", "minimum": 0},
+        "write_read_ratio": {"type": "number", "minimum": 0},
+        "query_mix": {"type": "object", "additionalProperties": false, "required": ["point", "range", "aggregate"], "properties": {"point": {"type": "number", "minimum": 0, "maximum": 1}, "range": {"type": "number", "minimum": 0, "maximum": 1}, "aggregate": {"type": "number", "minimum": 0, "maximum": 1}}},
+        "batch_max_events": {"type": "integer", "minimum": 1},
+        "batch_max_wait_ms": {"type": "number", "minimum": 0},
+        "read_concurrency": {"type": "integer", "minimum": 0},
+        "snapshot_restart_load": {"type": "string", "minLength": 1},
+        "compression": {"type": "string", "minLength": 1},
+        "object_size_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "hardware": {
+      "type": "object", "additionalProperties": false,
+      "required": ["os_kernel", "cpu_model", "cpu_logical_count", "ram_bytes", "disk_type", "filesystem", "process_count", "runtime_version", "power_policy", "dataset_representative"],
+      "properties": {
+        "os_kernel": {"type": "string", "minLength": 1},
+        "cpu_model": {"type": "string", "minLength": 1},
+        "cpu_logical_count": {"type": "integer", "minimum": 1},
+        "ram_bytes": {"type": "integer", "minimum": 1},
+        "disk_type": {"type": "string", "minLength": 1},
+        "filesystem": {"type": "string", "minLength": 1},
+        "process_count": {"type": "integer", "minimum": 1},
+        "runtime_version": {"type": "string", "minLength": 1},
+        "power_policy": {"type": "string", "minLength": 1},
+        "dataset_representative": {"type": "boolean"}
+      }
+    }
+  }
+}

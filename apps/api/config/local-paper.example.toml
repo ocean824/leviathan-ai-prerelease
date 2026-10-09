@@ -1,0 +1,17 @@
+# Example only: intentionally not loadable until the operator supplies both
+# an approved vault binding and an explicit OMEGA heartbeat SLA. This URI is
+# synthetic metadata and contains no key material.
+
+[project]
+project_id = "e2c897ec-b728-40a2-8c2d-c38b874c9006"
+environment = "PAPER"
+
+[secrets]
+ledger_integrity_key_ref = "vault://leviathan-ai/development/example-provider/EXAMPLE_LEDGER_KEY"
+
+[omega]
+due_store_path = "omega-due.sqlite3"
+# max_heartbeat_age_ns is required; choose it explicitly as an operator.
+
+[mcp_control]
+audit_store_path = "mcp-audit.sqlite3"

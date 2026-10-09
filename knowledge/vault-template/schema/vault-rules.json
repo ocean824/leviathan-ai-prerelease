@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "directory_note_types": {
+    "research": "research",
+    "strategies": "strategy",
+    "market-structure": "market-structure",
+    "trade-journal": "trade-journal",
+    "post-mortems": "post-mortem",
+    "source-lineage": "source-lineage"
+  },
+  "navigation_note_types": {"vault-map.md": "moc", "section-index": "index"},
+  "ingest_excludes": [
+    "README.md", "vault-map.md", "templates/", "schema/", "tools/",
+    "research/index.md", "strategies/index.md", "market-structure/index.md",
+    "trade-journal/index.md", "post-mortems/index.md", "source-lineage/index.md"
+  ],
+  "tenant_taxonomy_policy": "external-trusted-policy-required",
+  "seed_paths": [
+    "research/research--source-quality-gates.md",
+    "strategies/strategy--risk-gated-hypothesis.md",
+    "market-structure/market-structure--source-freshness.md",
+    "source-lineage/source-lineage--revision-chain.md"
+  ]
+}

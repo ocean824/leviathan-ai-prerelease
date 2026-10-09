@@ -1,0 +1,41 @@
+{
+  "formula_version": "IND-FORMULA-v1",
+  "decimal_context": {"precision": 34, "rounding": "ROUND_HALF_EVEN"},
+  "ema_n2": {
+    "period": 2,
+    "closes": ["10", "12", "14"],
+    "expected": ["null", "11", "13"]
+  },
+  "rsi_n2": {
+    "period": 2,
+    "closes": ["10", "12", "11", "12"],
+    "expected": ["null", "null", "66.66666666666666666666666666666667", "80"]
+  },
+  "rsi_edges_n2": {
+    "period": 2,
+    "flat_closes": ["7", "7", "7"],
+    "gain_only_closes": ["7", "8", "9"],
+    "loss_only_closes": ["9", "8", "7"],
+    "expected": {"flat": null, "gain_only": "100", "loss_only": "0"}
+  },
+  "atr_n2": {
+    "period": 2,
+    "ohlc": [["10", "12", "8", "10"], ["12", "14", "10", "12"], ["14", "15", "11", "14"]],
+    "expected": ["null", "4", "4"]
+  },
+  "vwap_session_reset": {
+    "ohlcv": [["9", "12", "8", "10", "2"], ["11", "14", "10", "12", "2"], ["14", "18", "14", "16", "1"]],
+    "session_keys": ["session-a", "session-a", "session-b"],
+    "expected": ["10", "11", "16"]
+  },
+  "vwap_exact_scaled_accumulation": {
+    "ohlcv": [["1", "2", "1", "1", "9"], ["1", "1", "1", "1", "2"]],
+    "session_keys": ["session-a", "session-a"],
+    "exact_cumulative_numerator": ["12", "14"],
+    "exact_cumulative_volume": ["9", "11"],
+    "expected": [
+      "1.333333333333333333333333333333333",
+      "1.272727272727272727272727272727273"
+    ]
+  }
+}

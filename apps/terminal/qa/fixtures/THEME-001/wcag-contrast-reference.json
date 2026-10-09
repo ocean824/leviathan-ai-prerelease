@@ -1,0 +1,6 @@
+﻿[
+  {"foreground":"#000000","background":"#ffffff","expected_ratio":21.0},
+  {"foreground":"#777777","background":"#ffffff","expected_ratio":4.478089453577214},
+  {"foreground":"#767676","background":"#ffffff","expected_ratio":4.542224959605253},
+  {"foreground":"#ffffff","background":"#ffffff","expected_ratio":1.0}
+]

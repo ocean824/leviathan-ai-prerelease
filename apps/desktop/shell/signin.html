@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Sign in · Leviathan AI</title>
+    <style>
+      :root { color-scheme: dark; font-family: Segoe UI, sans-serif; background: #101820; color: #edf2f7; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
+      main { box-sizing: border-box; width: min(28rem, calc(100vw - 2rem)); padding: 2rem; border: 1px solid #334352; border-radius: 1rem; background: #18232d; }
+      h1 { margin-top: 0; font-size: 1.6rem; }
+      p { color: #afbfcc; line-height: 1.5; }
+      label { display: block; margin-top: 1rem; font-size: .9rem; }
+      input { box-sizing: border-box; width: 100%; margin-top: .4rem; padding: .75rem; border: 1px solid #526779; border-radius: .4rem; background: #0f171e; color: inherit; }
+      button { width: 100%; margin-top: 1.4rem; padding: .8rem; border: 0; border-radius: .4rem; background: #3c9a88; color: #07130f; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: wait; }
+      #status { min-height: 1.5rem; margin-bottom: 0; }
+      #totp-uri { overflow-wrap: anywhere; user-select: text; font-family: ui-monospace, monospace; font-size: .8rem; }
+      #totp-secret { user-select: text; }
+      #totp-qr { display: grid; place-items: center; margin: 1rem 0; }
+      #totp-qr svg { width: min(18rem, 100%); height: auto; background: white; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sign in to Leviathan AI</h1>
+      <p>Your license and this device must be verified before the trading desktop opens.</p>
+      <form id="signin-form" autocomplete="on">
+        <label>Email
+          <input name="email" type="email" autocomplete="username" required maxlength="254">
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="current-password" required maxlength="1024">
+        </label>
+        <label>Authenticator code
+          <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" maxlength="12">
+        </label>
+        <button type="submit">Verify license</button>
+      </form>
+      <section id="totp-enrollment" hidden>
+        <h2>Set up your authenticator</h2>
+        <p>Copy the URI or enter the key below manually. Authenticator apps support manual key entry. This setup secret is shown once and is not saved by the desktop.</p>
+        <p id="totp-uri"></p>
+        <div id="totp-qr" aria-live="off"></div>
+        <label>Manual setup key
+          <input id="totp-secret" type="text" readonly autocomplete="off">
+        </label>
+        <form id="totp-confirm-form" autocomplete="off">
+          <label>Authenticator code
+            <input name="enrollment_code" inputmode="numeric" autocomplete="one-time-code" required maxlength="12">
+          </label>
+          <button type="submit">Confirm authenticator</button>
+        </form>
+      </section>
+      <p id="status" role="status" aria-live="polite">Sign-in is required.</p>
+    </main>
+    <script src="qr.js"></script>
+    <script src="signin.js"></script>
+  </body>
+</html>

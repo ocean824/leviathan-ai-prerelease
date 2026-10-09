@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leviathan-ai.invalid/schemas/resource-intent/v1",
+  "title": "Leviathan resource intent v1 (nonsecret, offline)",
+  "$comment": "The offline validator additionally requires injected reviewed owner/price-source registries and a hash-matched REQUIREMENTS_MAP snapshot. JSON Schema alone cannot establish registry membership.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "environments"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"const": "leviathan-ai"},
+    "environments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["development", "staging", "live"],
+      "properties": {
+        "development": {"$ref": "#/$defs/environment"},
+        "staging": {"$ref": "#/$defs/environment"},
+        "live": {"$ref": "#/$defs/environment"}
+      }
+    }
+  },
+  "$defs": {
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "resources"],
+      "properties": {
+        "identity": {"type": "string", "minLength": 1},
+        "resources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/resource"}}
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "kind", "name", "purpose", "owner", "approver", "region", "jurisdiction", "data_classification", "tier", "minimum_tier", "credential_aliases"],
+      "properties": {
+        "provider": {"enum": ["neon", "cloudflare"]},
+        "kind": {"enum": ["database", "worker", "queue", "r2"]},
+        "name": {"type": "string", "minLength": 1},
+        "purpose": {"enum": ["licensing", "async_jobs", "cold_archive"]},
+        "requirements": {"type": "array", "items": {"type": "string", "pattern": "^LEV-REQ-[0-9]{3}$"}},
+        "owner": {"type": "string", "minLength": 1, "description": "Exact member of the injected owner registry snapshot."},
+        "approver": {"type": "string", "minLength": 1, "description": "Exact member of the injected owner registry snapshot."},
+        "region": {"enum": ["us-east", "us-central", "global"]},
+        "jurisdiction": {"enum": ["US"]},
+        "data_classification": {"enum": ["public", "internal", "confidential", "restricted"]},
+        "tier": {"enum": ["minimum", "minimum-paid-to-confirm"]},
+        "minimum_tier": {"type": "boolean"},
+        "cost": {"$ref": "#/$defs/cost"},
+        "credential_aliases": {"type": "array", "items": {"type": "string", "pattern": "^vault://leviathan-ai/(development|live)/(neon|cloudflare|cloudflare-r2)/[A-Z][A-Z0-9_]*$"}},
+        "neon": {"$ref": "#/$defs/neon"},
+        "binding": {"type": "string", "minLength": 1},
+        "retention": {"$ref": "#/$defs/retention"}
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "monthly_cap": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+        "price_source": {"type": "string", "format": "uri", "description": "Byte-exact reviewed HTTPS URL in the injected price-source registry."},
+        "retrieved_on": {"type": "string", "format": "date"}
+      }
+    },
+    "neon": {
+      "type": "object", "additionalProperties": false,
+      "required": ["project", "branch", "role"],
+      "properties": {
+        "project": {"type": "string", "minLength": 1},
+        "branch": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      }
+    },
+    "retention": {
+      "type": "object", "additionalProperties": false,
+      "required": ["days", "lock_intent", "legal_hold", "delete_on_destroy"],
+      "properties": {
+        "days": {"type": "integer", "minimum": 0},
+        "lock_intent": {"enum": ["required", "not_required"]},
+        "legal_hold": {"type": "boolean"},
+        "delete_on_destroy": {"type": "boolean"}
+      }
+    }
+  }
+}

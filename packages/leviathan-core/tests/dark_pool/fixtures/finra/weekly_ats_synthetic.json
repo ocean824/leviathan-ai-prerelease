@@ -1,0 +1,49 @@
+{
+  "schema": "finra.aggregate.fixture.v1",
+  "verification": "SYNTHETIC_TEST",
+  "license_status": "SYNTHETIC_ONLY",
+  "source_file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "api_revision": "fixture-api-v1",
+  "dataset_id": "finra-weekly-synthetic-v1",
+  "tier": "ATS",
+  "schedule": {
+    "schedule_id": "synthetic-ats-release-calendar-v1",
+    "releases": [
+      {
+        "period_start_ns": 1800000000000000000,
+        "period_end_ns": 1800604800000000000,
+        "published_ns": 1800604801000000000
+      }
+    ]
+  },
+  "rows": [
+    {
+      "security_id": "SYNTH-X",
+      "period_start_ns": 1800000000000000000,
+      "period_end_ns": 1800604800000000000,
+      "metric_name": "share_volume",
+      "metric_unit": "shares",
+      "metric_value": "120000",
+      "published_ns": 1800604801000000000,
+      "received_ns": 1800604802000000000,
+      "available_ns": 1800604803000000000,
+      "revision_id": "rev-1",
+      "supersedes_revision_id": null,
+      "native_id": "synthetic-ats-row-1"
+    },
+    {
+      "security_id": "SYNTH-X",
+      "period_start_ns": 1800000000000000000,
+      "period_end_ns": 1800604800000000000,
+      "metric_name": "share_volume",
+      "metric_unit": "shares",
+      "metric_value": "121000",
+      "published_ns": 1800604801000000000,
+      "received_ns": 1800604802000000000,
+      "available_ns": 1800604803000000000,
+      "revision_id": "rev-2",
+      "supersedes_revision_id": "rev-1",
+      "native_id": "synthetic-ats-row-2"
+    }
+  ]
+}

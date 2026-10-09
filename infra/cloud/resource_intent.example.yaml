@@ -1,0 +1,137 @@
+# Nonsecret proposed intent only. All prices/caps are placeholders and block apply.
+# Supply a current official HTTPS price page, its retrieval date and a positive cap
+# for each resource before a separate reviewed provisioning task. Preflight also
+# requires --registries and --requirements-map with reviewed, hash-matched snapshots.
+schema_version: 1
+project: leviathan-ai
+environments:
+  development:
+    identity: leviathan-ai-development
+    resources:
+      - provider: neon
+        kind: database
+        name: leviathan-licensing-development
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: us-east
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/neon/NEON_DATABASE_URL]
+        neon: {project: leviathan-development, branch: licensing-development, role: licensing-app}
+      - provider: cloudflare
+        kind: worker
+        name: leviathan-licensing-development
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: global
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/cloudflare/CLOUDFLARE_API_TOKEN]
+        binding: licensing-development
+      - provider: cloudflare
+        kind: queue
+        name: leviathan-jobs-development
+        purpose: async_jobs
+        requirements: [LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: global
+        jurisdiction: US
+        data_classification: internal
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/cloudflare/CLOUDFLARE_API_TOKEN]
+        binding: jobs-development
+      - provider: cloudflare
+        kind: r2
+        name: leviathan-archive-development
+        purpose: cold_archive
+        requirements: [LEV-REQ-006, LEV-REQ-009]
+        owner: data-team
+        approver: release-manager
+        region: global
+        jurisdiction: US
+        data_classification: restricted
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/cloudflare-r2/CLOUDFLARE_R2_ACCESS_KEY_ID]
+        binding: archive-development
+        retention: {days: 2557, lock_intent: required, legal_hold: true, delete_on_destroy: false}
+  staging:
+    identity: leviathan-ai-staging
+    resources:
+      - provider: neon
+        kind: database
+        name: leviathan-licensing-staging
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: us-east
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/neon/STAGING_DATABASE_URL]
+        neon: {project: leviathan-staging, branch: licensing-staging, role: licensing-app}
+      - provider: cloudflare
+        kind: worker
+        name: leviathan-licensing-staging
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: global
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/development/cloudflare/STAGING_CLOUDFLARE_API_TOKEN]
+        binding: licensing-staging
+  live:
+    identity: leviathan-ai-live
+    resources:
+      - provider: neon
+        kind: database
+        name: leviathan-licensing-live
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: us-east
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/live/neon/NEON_DATABASE_URL]
+        neon: {project: leviathan-live, branch: licensing-live, role: licensing-app}
+      - provider: cloudflare
+        kind: worker
+        name: leviathan-licensing-live
+        purpose: licensing
+        requirements: [LEV-REQ-001, LEV-REQ-009]
+        owner: platform-team
+        approver: release-manager
+        region: global
+        jurisdiction: US
+        data_classification: confidential
+        tier: minimum-paid-to-confirm
+        minimum_tier: true
+        cost: {currency: USD, monthly_cap: "0.00", price_source: null, retrieved_on: null}
+        credential_aliases: [vault://leviathan-ai/live/cloudflare/CLOUDFLARE_API_TOKEN]
+        binding: licensing-live

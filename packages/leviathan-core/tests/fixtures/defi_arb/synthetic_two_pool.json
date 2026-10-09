@@ -1,0 +1,97 @@
+{
+  "description": "Synthetic-only two-pool constant-product fixture; no live chain evidence.",
+  "route": {
+    "route_id": "fixture-route-01",
+    "mode": "DEX_DEX",
+    "chain_id": "synthetic-chain",
+    "snapshot_id": "fixture-fork-01",
+    "block_hash": "fixture-block-01",
+    "quoted_at_ns": 0,
+    "deadline_ns": 500000000,
+    "flash_loan": {
+      "provider_id": "fixture-lender",
+      "token_id": "TOKEN-A",
+      "principal_units": 1000,
+      "principal": "1000",
+      "fee_bp": 100
+    },
+    "legs": [
+      {
+        "pool_type": "CONSTANT_PRODUCT",
+        "pool_id": "pool-a-to-b",
+        "venue_id": "fixture-dex-a",
+        "token_in": "TOKEN-A",
+        "token_out": "TOKEN-B",
+        "reserve_in_units": 100000,
+        "reserve_out_units": 200000,
+        "max_input_units": 10000,
+        "fee_bp": 0,
+        "min_output_units": 1980,
+        "reserve_as_of_ns": 0,
+        "reserve_digest": "fixture-reserve-a"
+      },
+      {
+        "pool_type": "CONSTANT_PRODUCT",
+        "pool_id": "pool-b-to-a",
+        "venue_id": "fixture-dex-b",
+        "token_in": "TOKEN-B",
+        "token_out": "TOKEN-A",
+        "reserve_in_units": 100000,
+        "reserve_out_units": 100000,
+        "max_input_units": 10000,
+        "fee_bp": 0,
+        "min_output_units": 1941,
+        "reserve_as_of_ns": 0,
+        "reserve_digest": "fixture-reserve-b"
+      }
+    ],
+    "tokens": [
+      {
+        "chain_id": "synthetic-chain",
+        "token_id": "TOKEN-A",
+        "decimals": 0,
+        "oracle_price": "1",
+        "oracle_as_of_ns": 0,
+        "oracle_digest": "fixture-oracle-a"
+      },
+      {
+        "chain_id": "synthetic-chain",
+        "token_id": "TOKEN-B",
+        "decimals": 0,
+        "oracle_price": "1",
+        "oracle_as_of_ns": 0,
+        "oracle_digest": "fixture-oracle-b"
+      }
+    ],
+    "gas": {
+      "gas_units": 1,
+      "max_fee_per_gas_units": 1,
+      "native_token_id": "TOKEN-A",
+      "gas_digest": "fixture-gas"
+    },
+    "input_digest": "fixture-input"
+  },
+  "policy": {
+    "allowed_chains": ["synthetic-chain"],
+    "allowed_tokens": ["TOKEN-A", "TOKEN-B"],
+    "allowed_venues": ["fixture-dex-a", "fixture-dex-b"],
+    "allowed_flash_providers": ["fixture-lender"],
+    "max_principal_units": 1000,
+    "max_gas_units": 2,
+    "max_fee_per_gas_units": 2,
+    "max_gas_cost_value": "2",
+    "max_price_impact_bps": 10000,
+    "max_slippage_bps": 10000,
+    "max_oracle_deviation_bps": 10000,
+    "min_profit_value": "0",
+    "max_reserve_age_ns": 500000000,
+    "max_oracle_age_ns": 500000000,
+    "max_quote_age_ns": 500000000
+  },
+  "snapshot": {
+    "chain_id": "synthetic-chain",
+    "snapshot_id": "fixture-fork-01",
+    "block_hash": "fixture-block-01",
+    "snapshot_digest": "fixture-snapshot"
+  }
+}

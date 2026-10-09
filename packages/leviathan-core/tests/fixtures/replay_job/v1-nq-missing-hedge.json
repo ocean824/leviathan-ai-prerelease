@@ -1,0 +1,188 @@
+{
+  "schema_version": "leviathan.replay-input/1",
+  "engine_version": "bar-bracket/1",
+  "dataset": {
+    "dataset_id": "synthetic-nq-opening-range",
+    "dataset_version": "synthetic-nq-2026-04-15-v1",
+    "universe_version": "nq-only-v1",
+    "adjustment_mode": "raw",
+    "bars": [
+      {
+        "instrument": "NQ",
+        "timestamp": "2026-04-15T14:35:00.000000Z",
+        "open": "18250",
+        "high": "18258",
+        "low": "18246",
+        "close": "18255",
+        "volume": "1000"
+      },
+      {
+        "instrument": "NQ",
+        "timestamp": "2026-04-15T14:36:00.000000Z",
+        "open": "18255",
+        "high": "18262",
+        "low": "18248",
+        "close": "18260",
+        "volume": "1000"
+      },
+      {
+        "instrument": "NQ",
+        "timestamp": "2026-04-15T14:37:00.000000Z",
+        "open": "18260",
+        "high": "18266",
+        "low": "18255",
+        "close": "18264",
+        "volume": "1000"
+      },
+      {
+        "instrument": "NQ",
+        "timestamp": "2026-04-15T14:38:00.000000Z",
+        "open": "18264",
+        "high": "18272",
+        "low": "18260",
+        "close": "18270",
+        "volume": "1000"
+      }
+    ],
+    "bars_sha256": "cc44d2f3bb75182804c8e2eb65e902f33b6f32109d8306a700d704f127440cbd"
+  },
+  "strategy": {
+    "strategy_ref": "static_genome/1",
+    "strategy_version": "1",
+    "genome": {
+      "strategy_id": "synthetic-nq-breakout-v1",
+      "family": "opening_range_break",
+      "market": "NQ",
+      "timeframe": "1m",
+      "session_dependencies": [
+        "ny_open"
+      ],
+      "state_dependencies": [
+        "breakout",
+        "trend_continuation"
+      ],
+      "entry_conditions": [
+        "structure break above range high",
+        "retest holds"
+      ],
+      "exit_conditions": [
+        "target or stop touched"
+      ],
+      "risk_profile": "moderate_intraday",
+      "failure_modes": [
+        "failed breakout",
+        "news reversal"
+      ],
+      "prop_firm_compatible": true
+    }
+  },
+  "setup": {
+    "setup_id": "c102-synthetic-setup-nq-001",
+    "instrument": "NQ",
+    "timestamp": "2026-04-15T14:35:00.000000Z",
+    "signal_features": [
+      "opening_range_break",
+      "retest"
+    ],
+    "session_label": "ny_open",
+    "range_label": "above_opening_range_high",
+    "state_label": "breakout",
+    "liquidity_features": [
+      "synthetic_liquidity_confirmation"
+    ]
+  },
+  "truth": {
+    "truth_provider": "static_truth/1",
+    "result": {
+      "setup_id": "c102-synthetic-setup-nq-001",
+      "orderbook_bias": "bullish",
+      "options_context": "synthetic balanced near-dated context",
+      "event_risk": "safe",
+      "sentiment_modifier": 0.05,
+      "truth_status": "confirmed",
+      "notes": "Sanitized deterministic fixture evidence."
+    }
+  },
+  "account": {
+    "equity": "100000",
+    "daily_pnl_pct": "0",
+    "weekly_pnl_pct": "0",
+    "trailing_dd_pct": "0",
+    "consecutive_losses": 0,
+    "open_positions": []
+  },
+  "decision_inputs": {
+    "prior_state": "compression",
+    "requested_size": "1",
+    "stop_loss": "18240",
+    "take_profit": "18270",
+    "sector": "index_futures",
+    "events": [
+      {
+        "name": "SYNTHETIC_FOMC",
+        "scheduled_at": "2026-04-15T18:00:00.000000Z",
+        "tier": 1
+      }
+    ]
+  },
+  "fill_model": {
+    "model_id": "paper_bar_bracket/1",
+    "slippage": "0.25",
+    "order_type": "market",
+    "time_in_force": "DAY",
+    "same_bar_priority": "stop_first"
+  },
+  "risk": {
+    "context": {
+      "as_of": "2026-04-15T14:39:00.000000Z",
+      "required": [
+        {
+          "stream_id": "bars.primary",
+          "symbol": "NQ",
+          "provider": "synthetic"
+        }
+      ],
+      "observed": [
+        {
+          "stream_id": "bars.primary",
+          "symbol": "NQ",
+          "provider": "synthetic",
+          "source_ts": "2026-04-15T14:39:00.000000Z",
+          "exchange_ts": "2026-04-15T14:39:00.000000Z",
+          "received_at": "2026-04-15T14:39:00.000000Z"
+        }
+      ],
+      "kill": {
+        "global_kill": false,
+        "killed_providers": [],
+        "kill_expires_at": null
+      },
+      "max_staleness_ms": 300000,
+      "max_clock_skew_ms": 2000
+    },
+    "expected_lock_sha256": "a06467d9a8098536454e96fb4eac6b544fb6f53eec01de3e0cfe461d044129d4",
+    "stream_topology": [
+      {
+        "role": "primary",
+        "stream_id": "bars.primary",
+        "instrument": "NQ",
+        "provider": "synthetic",
+        "timeframe": "1m"
+      },
+      {
+        "role": "hedge",
+        "stream_id": "bars.hedge",
+        "instrument": "ES",
+        "provider": "synthetic",
+        "timeframe": "1m"
+      }
+    ],
+    "role_cardinality": {
+      "primary": 1,
+      "hedge": 1
+    },
+    "initial_halts": [],
+    "audit_policy": "required_fsync/1"
+  },
+  "seed": 102
+}

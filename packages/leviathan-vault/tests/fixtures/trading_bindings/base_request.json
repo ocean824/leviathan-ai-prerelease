@@ -1,0 +1,16 @@
+{
+  "environment": "development",
+  "broker": "IBKR",
+  "account_ref": "synthetic-paper-account-001",
+  "session_ref": "synthetic-gateway-100",
+  "venue": "IBKR-PAPER",
+  "instrument": "ES-202612",
+  "instrument_mapping_revision": "mapping-v1",
+  "strategy_id": "strategy-demo",
+  "hard_risk_limit_revision": "risk-v1",
+  "session_mode": "paper",
+  "binding_revision": 1,
+  "credential_revision": 1,
+  "checked_at": "2026-10-05T12:00:00+00:00",
+  "want_submit": false
+}

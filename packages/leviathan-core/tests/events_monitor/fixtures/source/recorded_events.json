@@ -1,0 +1,52 @@
+{
+  "layout": "recorded-event-source-v1",
+  "events": [
+    {
+      "source_id": "provider-alpha",
+      "schema_version": "schema-1",
+      "native_id": "earnings-42",
+      "issuer_id": "issuer-old",
+      "ticker": "OLD",
+      "event_type": "earnings",
+      "vendor_revision": 1,
+      "vendor_state": "NEW",
+      "precision": "exact",
+      "session": "REGULAR",
+      "exchange_tz": "America/Chicago",
+      "event_date": "2026-09-18",
+      "local_start": "2026-09-18T08:30:00-05:00",
+      "local_end": "2026-09-18T08:30:00-05:00",
+      "published": "2026-09-17T20:00:00Z",
+      "received": "2026-09-17T20:01:00Z",
+      "available": "2026-09-17T20:02:00Z",
+      "fiscal_year": 2026,
+      "fiscal_quarter": 3,
+      "related_tickers": ["PEER"],
+      "feed_state": "SYNTHETIC"
+    },
+    {
+      "source_id": "provider-alpha",
+      "schema_version": "schema-1",
+      "native_id": "earnings-42",
+      "issuer_id": "issuer-old",
+      "ticker": "OLD",
+      "event_type": "earnings",
+      "vendor_revision": 2,
+      "vendor_state": "CHANGE",
+      "precision": "exact",
+      "session": "REGULAR",
+      "exchange_tz": "America/Chicago",
+      "event_date": "2026-09-18",
+      "local_start": "2026-09-18T09:00:00-05:00",
+      "local_end": "2026-09-18T09:00:00-05:00",
+      "published": "2026-09-18T14:00:00Z",
+      "received": "2026-09-18T14:01:00Z",
+      "available": "2026-09-18T14:02:00Z",
+      "fiscal_year": 2026,
+      "fiscal_quarter": 3,
+      "correction_of_revision": 1,
+      "related_tickers": ["PEER"],
+      "feed_state": "SYNTHETIC"
+    }
+  ]
+}

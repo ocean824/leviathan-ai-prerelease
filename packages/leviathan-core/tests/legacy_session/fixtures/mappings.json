@@ -1,0 +1,12 @@
+{
+  "mapping_version": "session-map-v1",
+  "schema_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sunset_utc": "2030-01-01T00:00:00Z",
+  "retention_start_ns": 1700000000000000000,
+  "successor_id": "9a2b1f7e-4c6d-4a90-8e13-5c7b2d91a640",
+  "exact": {"field": "state", "canonical": "ACTIVE", "legacy": "RUNNING", "compatible": false},
+  "compatible": {"field": "session", "canonical": "PREMARKET_AND_REGULAR", "legacy": "REGULAR_ONLY", "compatible": true, "note": "legacy omits premarket interval"},
+  "unknown": {"field": "state", "canonical": "UNMAPPED_SYNTHETIC", "legacy": "NOT_PRESENT", "compatible": false},
+  "dst_boundary_ns": [1710054000000000000, 1730613600000000000],
+  "early_close_ns": [1732822200000000000, 1732836600000000000]
+}

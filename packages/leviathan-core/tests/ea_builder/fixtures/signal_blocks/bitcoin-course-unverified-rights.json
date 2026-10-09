@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "fixture_id": "synthetic_course_rights",
+  "synthetic": true,
+  "asset_label": "bitcoin-course-like market making source",
+  "source_rights": "unverified",
+  "auto_codegen_eligible": false,
+  "source_payload_included": false,
+  "reviewed_signal_rules": [],
+  "hazards": ["unverified_rights", "source_code"]
+}

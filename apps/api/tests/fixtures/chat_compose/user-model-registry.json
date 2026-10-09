@@ -1,0 +1,34 @@
+{
+  "version": "v1",
+  "entries": [
+    {
+      "entry_id": "entry.user.chat",
+      "alias": "assistant.user",
+      "provider": "gpt",
+      "model_id": "synthetic-gpt-compatible-v1",
+      "model_version": "v1",
+      "registry_version": "v1",
+      "capability": {
+        "modalities": ["text"],
+        "tools": [],
+        "output_schemas": [],
+        "structured_output": false,
+        "max_context_tokens": 16384,
+        "max_output_tokens": 256,
+        "quality_class": "standard",
+        "privacy_class": "internal"
+      },
+      "supported_regions": ["global"],
+      "approved": true,
+      "available": true,
+      "available_from_ns": 1,
+      "available_until_ns": 9223372036854775807,
+      "credential_name": "OPENAI_COMPATIBLE_API_KEY",
+      "input_cost_per_million_tokens_usd": "10",
+      "output_cost_per_million_tokens_usd": "20",
+      "cost_class": "low",
+      "latency_class": "low",
+      "latency_reservation_ns": 1000000000
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+# Copy to the application's data directory at market-data/paper-runtime.toml.
+# This file contains configuration only. Provider credentials are resolved by
+# the installed application's project-scoped vault bindings, never from TOML.
+# Leave both feeds disabled until the operator confirms provider entitlements.
+
+schema_version = 1
+project_id = "leviathan-ai"
+environment = "PAPER"
+
+[databento]
+enabled = false
+dataset = "example-dataset"
+stype_in = "raw_symbol"
+schemas = ["trades"]
+instruments = ["SYNTHETIC.SYMBOL"]
+
+[massive]
+enabled = false
+dataset = "example-dataset"
+stype_in = "raw_symbol"
+schemas = ["trades"]
+instruments = ["SYNTHETIC.SYMBOL"]
+
+[backfill]
+max_jobs = 4
+max_records = 50000
+max_window_ns = 2678400000000000
+max_estimated_usd = "1.00"
+
+[reconnect]
+min_delay_ms = 250
+max_delay_ms = 5000
+max_attempts = 12

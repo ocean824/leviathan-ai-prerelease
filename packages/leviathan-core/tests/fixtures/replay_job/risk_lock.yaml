@@ -1,0 +1,54 @@
+version: 1
+schema: leviathan.tiamat.risk.v1
+operator_handle: "C-102 synthetic fixture"
+account_currency: USD
+drawdown:
+  max_daily_pct: 3.0
+  max_weekly_pct: 6.0
+  max_trailing_pct: 8.0
+  daily_reset_time_utc: "00:00"
+  on_breach: global_halt_until_reset
+heat:
+  max_open_pct: 5.0
+  max_per_position_pct: 1.0
+leverage:
+  max_gross_notional_x: 5
+  max_net_x: 3
+  fx_max_x: 10
+correlation:
+  max_positions_same_sector: 2
+  correlation_threshold: 0.7
+  on_breach: block_new_entries
+news_embargo:
+  tier_1_events: [CPI, FOMC, NFP, PCE, JoltsJobs, GDP]
+  pre_event_minutes: 30
+  post_event_minutes: 30
+  on_breach: block_new_entries
+loss_streak:
+  consecutive_losers: 3
+  size_cut_pct: 50
+  duration_hours: 24
+  recovery_mode: true
+instrument_limits:
+  default:
+    max_position_units: 10
+    max_open_positions_per_symbol: 1
+  overrides:
+    NQ:
+      max_position_units: 3
+      max_open_positions_per_symbol: 1
+kill_switches:
+  global_halt_file: "synthetic-host-state/DO_NOT_READ.flag"
+  on_unexpected_pnl_swing_pct: 2.0
+  on_consecutive_broker_errors: 3
+  on_omega_kill_signal: true
+audit:
+  master_hash_file: "synthetic-host-state/DO_NOT_READ.hash"
+  guardian_daemon_path: "synthetic-host-state/DO_NOT_RUN.py"
+  log_path: "synthetic-host-state/DO_NOT_WRITE.jsonl"
+  verify_before_every_order: true
+  verify_interval_seconds: 60
+self_evolution:
+  triton_can_propose_changes: true
+  triton_can_apply_changes: false
+  proposal_log: "synthetic-host-state/DO_NOT_WRITE.jsonl"

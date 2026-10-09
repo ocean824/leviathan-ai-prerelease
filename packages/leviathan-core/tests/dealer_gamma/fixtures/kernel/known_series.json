@@ -1,0 +1,13 @@
+﻿{
+  "asof_ns": 1000,
+  "underlier": "XYZ",
+  "expiry": "2026-10-16",
+  "spot": "100",
+  "open_interest": "100",
+  "multiplier": "100",
+  "gamma": "0.02",
+  "eligible_oi_denominator": "100",
+  "expiry_cutoff_ns": 2000,
+  "dealer_short_call": -1,
+  "dealer_long_call": 1
+}

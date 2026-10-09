@@ -1,0 +1,95 @@
+schema_version: "1"
+strategy_id: "AS-05-07-MTR-PORT"
+execution_scope: "research_replay_paper_only"
+order_routing: false
+performance_claim: false
+classification_source:
+  archive: "MTR_FullSystemEA_v1.0.1_sale_20260616.zip"
+  archive_sha256: "7d9413c1b4cadedad5dc02d02d5d7417f7106fdbcf32a15f6e96d550d7045f6d"
+  rights: "User confirmed rights for this research/strategy starting-point port; no redistribution or execution rights inferred."
+  extraction: "Read-only extraction; archived code and scripts were not run."
+variants:
+  documented_regime_grid_v0:
+    source_files:
+      - path: "docs/mtr_strategy_spec_v0.md"
+        sha256: "e9a53544f30643dadeb3905e81027e865858320687cdd0b46108041ba09db2cc"
+      - path: "MQL5/Experts/MTR_FullSystemEA.mq5"
+        sha256: "ba44ca0d17b47e0523ad25cedb9b7e3315ee11e29806e41f12d39cf77f99dc3a"
+      - path: "MQL5/Include/MTR/GridAdd.mqh"
+        sha256: "3de5457541a8c8900802cf7ddc2337d96e5c87a152f8c1dee0ab97fafa223f97"
+      - path: "MQL5/Include/MTR/RegimeEngine.mqh"
+        sha256: "103019b54265fab13bc538acd9b360bf02213151488d287a35596c500a0b04db"
+    selected_for_port: true
+    states: [RANGE_NORMAL, TREND_UP, TREND_DOWN, VOL_EXPANSION, CRISIS_ONE_WAY, RECOVERY_MODE]
+    rules:
+      trend_bars: 12
+      crisis_trend_bars: 24
+      adx_threshold: 25
+      recovery_mode: "System-state overlay; it is returned in preference to the market regime while any basket is in RECOVERY tier."
+      atr_percentile_threshold: 70
+      crisis_realized_vol_percentile: 90
+      grid_price_fraction: "0.0025"
+      grid_atr_fraction: "0.35"
+      lot_multipliers: ["1", "1", "1", "1.25", "1.25", "1.5"]
+      side_regimes:
+        BUY: [RANGE_NORMAL, TREND_DOWN]
+        SELL: [RANGE_NORMAL, TREND_UP]
+    caveat: "Primary documented rule source; inputs are precomputed and do not claim indicator-library parity."
+  source_regime_engine_mql5:
+    source_files:
+      - path: "MQL5/Include/MTR/RegimeEngine.mqh"
+        sha256: "103019b54265fab13bc538acd9b360bf02213151488d287a35596c500a0b04db"
+    selected_for_port: false
+    differences:
+      - "Trend persistence uses at least 9 closed H1 bars rather than the document's 12."
+      - "Crisis uses ATR ratio above 1.50 and spread above 2x baseline; it does not implement the documented 24-bar persistence and realized-volatility percentile test."
+      - "Invalid features default to RANGE_NORMAL in source; the port rejects invalid or unclassified observations."
+  regime_score_r1a:
+    source_files:
+      - path: "MQL5/Include/MTR/RegimeScore.mqh"
+        sha256: "6c03b1ba7fdeffa463fd53dd98459e040b9b5844d163c0e0a51edffcbe6ffb9a"
+    selected_for_port: false
+    difference: "Produces continuous range/trend/danger scores from closed M5 bars; it is a separate engine, not the six-state classifier."
+  pure_ea_flow_logic:
+    source_files:
+      - path: "docs/MTR_Pure_EA_FlowLogic_Spec.md"
+        sha256: "b20c1dd33881df51ed3e917c756be413c9bc1b8d923322789c3c28b1486c10dc"
+    selected_for_port: false
+    difference: "Distinct Donchian/40 grid, [$3,$25] clamp, recovery after four adds, and 0.25% cycle-anchor target; not merged."
+liquidation:
+  source_files:
+    - path: "docs/mtr_liquidation_policy_v0.md"
+      sha256: "f4d60ae4de200fb6a8ae13e3e9d3452b96e323be9b9ffe0ba28e4a05cfe7e4a3"
+  source_priority: [margin_lt_300, account_dd_gt_12, floating_dd_gt_8, age_gt_45_days, mae_gt_10_atr]
+sovereign_overrides:
+  source_file: "infra/risk/risk_governance.lock.yaml"
+  source_sha256: "cfe9cf34554145327145de881ae0ac38642176a91a481c06fe830da10aa9fb87"
+  limits:
+    daily_drawdown_pct: "3"
+    weekly_drawdown_pct: "6"
+    trailing_drawdown_pct: "8"
+    portfolio_heat_pct: "5"
+    per_position_heat_pct: "1"
+    gross_leverage_x: "5"
+    source_max_basket_orders: 6
+    port_default_max_adds: 2
+    max_order_units: "1"
+    max_position_units: "1"
+    max_net_leverage_x: "3"
+  max_adds_configuration: "Typed field; default 2; values above source maximum 6 are rejected. This is a strategy-level cap pending an operator-approved sovereign adds limit. Any preset/config value above a sovereign limit is denied, never clamped."
+  note: "The 2-add default, 1-unit per-order limit and 1-unit total-position limit are deliberately tighter strategy settings; max_adds is not yet an approved sovereign rule."
+preserved_failure_evidence:
+  - path: "docs/mtr_like_xau_closed_empirical.md"
+    sha256: "9c2811264e96c8ada66856c4ef70b0731a85dca1c69d06d6c2dc6ea6b2cae98e"
+    evidence: "CLOSED_EMPIRICAL; OOS_STAGE1_FAIL (F-gates 2/6); test aggregate collapsed from +8106 to -849 under the pre-registered RANGE_ONLY change."
+  - path: "docs/MTR_DonchianRegimeGrid_v01_RC1_SIGNOFF.md"
+    sha256: "bd9941dfa03de0d05d9296077201bf415d276c8c29dadc4ce4d69ca3fe42e5ae"
+    evidence: "Reports falsified experimental filters/caps, including a cap 3-to-2 variant that harmed 2024; preserve as separate failed variant."
+  - path: "sale_package/RISK_DISCLOSURE.md"
+    sha256: "d42a5cad4d168fbb237a6010e30650b3d3390a75043f80020cc22a72e4f58e18"
+    evidence: "Describes grid/recovery/martingale-like tail risk and latency sensitivity; source reports include +139% at zero added delay and -38% at 288 ms, unverified here."
+limitations:
+  - "No indicator calculation, source-runtime parity, broker adapter, execution path, or persistence is implemented."
+  - "HALT is an injected Boolean denial input; this code cannot engage, clear, or bypass shared risk HALT."
+  - "This port supports research and replay only; paper promotion remains separately gated."
+  - "No return, performance, or safety claim is made; OOS and latency failures remain preserved above."

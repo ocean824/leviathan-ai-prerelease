@@ -1,0 +1,123 @@
+﻿{
+    "canonical_root":  "C:\\Users\\XYRASYSTEMS\\TRAYCER MASTER TEMPLATE\\XYRA-MASTER\\projects\\XYRASYSTEMS\\LEVIATHAN AI\\repo",
+    "copy_root":  "C:\\Users\\XYRASYSTEMS\\TRAYCER MASTER TEMPLATE\\XYRA-MASTER\\projects\\XYRASYSTEMS\\LEVIATHAN AI\\repo-pkg-mac-001-phase-a",
+    "captured_utc":  "2026-10-08T22:17:33.9294218Z",
+    "excluded_directory_names":  [
+                                     ".git",
+                                     "target",
+                                     "node_modules",
+                                     ".venv",
+                                     "dist",
+                                     "__pycache__"
+                                 ],
+    "hashes":  [
+                   {
+                       "path":  "apps/desktop/src-tauri/Cargo.toml",
+                       "sha256":  "0f2fa4d2db1a012e88f9aba20f38c2da5141b8871659215126a51acf21227d23"
+                   },
+                   {
+                       "path":  "apps/desktop/src-tauri/Cargo.lock",
+                       "sha256":  "067eab8a21c98142429efe5465aa6a9c617234e41de9f0a5262a463e64ed7681"
+                   },
+                   {
+                       "path":  "apps/desktop/src-tauri/tauri.conf.json",
+                       "sha256":  "122b7c90800305cece8a18a9cb6e49d929e8e94b266bcb3f003324873ed765fa"
+                   },
+                   {
+                       "path":  "apps/desktop/src-tauri/src/main.rs",
+                       "sha256":  "6e1336337337a117772b9cc7a4d43584bd9ae8d6de7d64f4537fc5c635d03a0b"
+                   },
+                   {
+                       "path":  "apps/desktop/src-tauri/src/license.rs",
+                       "sha256":  "e5baea09c7d0a6202b21578661c418d89a28d65de9e69cfdd0b4444d5e3bd6f1"
+                   },
+                   {
+                       "path":  "apps/desktop/src-tauri/src/opener.rs",
+                       "sha256":  "6b7da2d4ccf53d208a4bc7f5ba56ea9941468153321e873c73473506186773bb"
+                   },
+                   {
+                       "path":  "apps/desktop/sidecar/leviathan_desktop.py",
+                       "sha256":  "fca211ed695d79107f7f57c33547eba176e2bacd30097e2979478efb45dcf8cb"
+                   },
+                   {
+                       "path":  "apps/desktop/sidecar/risk_lock_migration.py",
+                       "sha256":  "37bef8123f21c816ce714bd21dc5103ba6535a71a92df27ba174ccb446f7830a"
+                   },
+                   {
+                       "path":  "apps/desktop/sidecar/leviathan_desktop.spec",
+                       "sha256":  "0e781b4c178cafc77928326a24a420a8a039c3dacafb7ad8e1cad4679e24a9b5"
+                   },
+                   {
+                       "path":  "packages/leviathan-vault/pyproject.toml",
+                       "sha256":  "1990a8e5b7ea5c343e78d359f530118c9310d7dbdb2d2a1f92bbe2317bc3bf0a"
+                   },
+                   {
+                       "path":  "packages/leviathan-vault/src/leviathan_vault/app_credentials.py",
+                       "sha256":  "7d0ba7064e702edc106e5575f5fe02110ea340a113e75a3b1a06028c40d618fd"
+                   },
+                   {
+                       "path":  "apps/api/src/leviathan_api/main.py",
+                       "sha256":  "424f4502497ed264bf491dbf10264b00b3499a3d55498af4d530222265d47db8"
+                   },
+                   {
+                       "path":  "infra/release/feed_manifest.py",
+                       "sha256":  "2dcd637f6f5887b893ab81b67fe5a7d7b69e4b9a2f9c2de133612a7179773f63"
+                   },
+                   {
+                       "path":  "infra/release/publish_feed.py",
+                       "sha256":  "fc2a9fc4b7cdb3c9b0170f07bed8d1dc67e9b5a643275287fe7f3bf2ec0a845b"
+                   },
+                   {
+                       "path":  "workers/release-feed/src/handler.ts",
+                       "sha256":  "cdee49f3fd2b674001d12a17be9f0cb37d4f19b28c1c2f90c7d3c2003714c812"
+                   },
+                   {
+                       "path":  "apps/desktop/scripts/build.ps1",
+                       "sha256":  "9589d894dd8d085711743ea2a7ded7a85222209da79e6b08d64c8280ad3c646b"
+                   },
+                   {
+                       "path":  "apps/desktop/scripts/acceptance.ps1",
+                       "sha256":  "dc5dfab67a58873fa4d89c14d6542a13643fc352b366444a2e372931a79ea871"
+                   }
+               ],
+    "supplemental_hash_capture_utc":  "2026-10-08T22:43:12.4937586Z",
+    "supplemental_hashes":  [
+                                {
+                                    "path":  "apps/desktop/src-tauri/src/lib.rs",
+                                    "sha256":  "3fe3b6e634bb87b448a135a7c4bc6b466529bc1fe594b8cf3ca6f24b663cfc33"
+                                },
+                                {
+                                    "path":  "apps/desktop/src-tauri/tests/opener_acceptance.rs",
+                                    "sha256":  "bf0cb738dd7983e6038cfcc1fa1ab89f2f13cd3906d60aaab00fc943d31d8f6b"
+                                },
+                                {
+                                    "path":  "infra/release/tests/test_feed_manifest.py",
+                                    "sha256":  "c0a385ffdee285827f2757f1c0fc69af5591a2a54fa07fcff4e3938c4997fbab"
+                                },
+                                {
+                                    "path":  "infra/release/tests/test_publish_feed.py",
+                                    "sha256":  "48d75a092c35009852d3f92d83bb7ffcba4be8a44f8b892e25feae3c8b368ed1"
+                                },
+                                {
+                                    "path":  "workers/release-feed/tests/feed.test.ts",
+                                    "sha256":  "2f2b0d0f22b2e0e2bcfe27fa0fc49355cd5e66fee4ed16d6452f6eda7e6e79d2"
+                                },
+                                {
+                                    "path":  "uv.lock",
+                                    "sha256":  "6cf911599b36268c0118caa6c923084c5e7784b3612867a5463a8aa22afbce4c"
+                                }
+                            ],
+    "absent_at_canonical_start":  [
+                                      "apps/desktop/src-tauri/src/platform/mod.rs",
+                                      "apps/desktop/src-tauri/src/platform/windows.rs",
+                                      "apps/desktop/src-tauri/src/platform/macos.rs",
+                                      "apps/desktop/src-tauri/src/opener/acceptance.rs",
+                                      "apps/desktop/src-tauri/tauri.macos.conf.json",
+                                      "apps/desktop/sidecar/platform_paths.py",
+                                      "apps/desktop/sidecar/tests/test_platform_paths.py",
+                                      "apps/desktop/scripts/build-macos.sh",
+                                      "apps/desktop/scripts/acceptance-macos.sh",
+                                      "apps/desktop/MACOS_INTERNAL_TESTING.md",
+                                      "packages/leviathan-vault/tests/test_macos_keychain_contract.py"
+                                  ]
+}

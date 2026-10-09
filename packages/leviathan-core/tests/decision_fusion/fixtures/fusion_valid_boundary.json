@@ -1,0 +1,70 @@
+{
+  "request": {
+    "evaluation_ns": 1000000000,
+    "tenant_id": "synthetic-tenant",
+    "strategy_revision": "strategy-revision-7",
+    "strategy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "symbol": "SYNTH",
+    "window_id": "window-42",
+    "observations": [
+      {
+        "layer": "L1",
+        "source": "synthetic-l1",
+        "source_version": "fixture-v1",
+        "event_ns": 750000000,
+        "available_ns": 1000000000,
+        "semantic_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "integrity": "ok"
+      },
+      {
+        "layer": "L2",
+        "source": "synthetic-l2",
+        "source_version": "fixture-v1",
+        "event_ns": 750000000,
+        "available_ns": 1000000000,
+        "semantic_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "score": "0.8"
+      },
+      {
+        "layer": "L3",
+        "source": "synthetic-l3",
+        "source_version": "fixture-v1",
+        "event_ns": 750000000,
+        "available_ns": 1000000000,
+        "semantic_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "confidence": "0.8"
+      },
+      {
+        "layer": "L4",
+        "source": "synthetic-l4",
+        "source_version": "fixture-v1",
+        "event_ns": 750000000,
+        "available_ns": 1000000000,
+        "semantic_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "score": "0.8"
+      }
+    ],
+    "market_context": {
+      "global_risk_off": false,
+      "halted": false,
+      "truth_rejected": false
+    },
+    "feature_snapshots": [],
+    "feature_attributions": []
+  },
+  "policy": {
+    "policy_id": "synthetic-fusion-policy",
+    "policy_version": "v1",
+    "window_ns": 250000000,
+    "max_source_skew_ns": 50000,
+    "min_l2_score": "0.7",
+    "min_l3_confidence": "0.7",
+    "min_l4_score": "0.7",
+    "required_sources": [
+      ["L1", "synthetic-l1"],
+      ["L2", "synthetic-l2"],
+      ["L3", "synthetic-l3"],
+      ["L4", "synthetic-l4"]
+    ]
+  }
+}

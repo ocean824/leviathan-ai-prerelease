@@ -1,0 +1,12 @@
+name = "leviathan-release-feed"
+main = "src/handler.ts"
+compatibility_date = "2026-10-06"
+workers_dev = false
+
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "RELEASE_FEED_BUCKET_CONFIGURE_BEFORE_DEPLOY"
+
+[vars]
+ALLOWED_ARTIFACT_HOSTS = ""
+MANIFEST_CACHE_TTL_SECONDS = "60"

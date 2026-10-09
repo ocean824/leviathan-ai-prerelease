@@ -1,0 +1,11 @@
+{
+  "case_id": "SEAL-001-acceptance-v1",
+  "payload": {
+    "value": 1,
+    "status": "READY",
+    "tags": ["alpha", "beta"],
+    "child": {"text": "synthetic-child"}
+  },
+  "tampered_value": 100,
+  "content_free_canary": "SEAL-CONTENT-CANARY-8f24c1"
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "fixture_id": "synthetic_mtr_variants",
+  "synthetic": true,
+  "asset_label": "MTR-like conflicting strategy variants",
+  "auto_codegen_eligible": false,
+  "source_payload_included": false,
+  "reviewed_signal_rules": [],
+  "hazards": ["conflict", "failed_oos", "latency_loss"],
+  "evidence_labels": ["variant_alpha", "variant_beta"]
+}

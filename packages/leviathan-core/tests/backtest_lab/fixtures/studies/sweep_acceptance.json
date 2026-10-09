@@ -1,0 +1,13 @@
+{
+  "grid": {
+    "fast_values": [1, 2, 3],
+    "slow_values": [2, 3, 4],
+    "inequality": "fast < slow",
+    "expected_feasible": [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+  },
+  "duplicate_bayesian_proposals": {
+    "risk": "0.2",
+    "count": 4,
+    "statuses": ["FAILED", "STOPPED", "COMPLETED", "PENDING"]
+  }
+}

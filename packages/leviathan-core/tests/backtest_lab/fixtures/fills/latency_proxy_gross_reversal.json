@@ -1,0 +1,13 @@
+{
+  "scenario": "synthetic_latency_proxy_gross_reversal",
+  "provenance": "Independent synthetic values authored from the BT-003 contract's zero-delay versus latency-proxy reversal case; no external repository or market data used.",
+  "session": {"venue": "XNYS", "session_date": "2026-01-02", "open_ns": 0, "close_ns": 100},
+  "events": [
+    {"kind": "quote", "event_ns": 5, "bid_price": "99.50", "bid_size": "10", "ask_price": "100.00", "ask_size": "10"},
+    {"kind": "quote", "event_ns": 20, "bid_price": "100.50", "bid_size": "10", "ask_price": "101.00", "ask_size": "10"}
+  ],
+  "quantity": "1",
+  "entry_submit_ns": 0,
+  "exit_submit_ns": 10,
+  "latency_proxy_ns": 10
+}

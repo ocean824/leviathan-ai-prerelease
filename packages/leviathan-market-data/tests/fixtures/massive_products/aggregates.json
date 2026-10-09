@@ -1,0 +1,1 @@
+{"status":"OK","request_id":"synthetic-bars-001","next_url":"https://api.massive.com/v2/aggs/ticker/AAPL/cursor=synthetic-next","results":[{"T":"AAPL","o":123.4500,"h":124.0000,"l":122.5000,"c":123.7500,"v":1000.500,"t":1791297000000,"n":12,"vw":123.6250}]}

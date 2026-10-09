@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "fixture_id": "synthetic_kinnobot_parameters",
+  "synthetic": true,
+  "asset_label": "KINNOBOT-like parameter-only artifact",
+  "asset_kind": "parameter_only",
+  "parameters": {"period": 7, "threshold": "0.25"},
+  "auto_codegen_eligible": false,
+  "source_payload_included": false,
+  "reviewed_signal_rules": [],
+  "hazards": ["parameter_only", "unresolved_logic"]
+}

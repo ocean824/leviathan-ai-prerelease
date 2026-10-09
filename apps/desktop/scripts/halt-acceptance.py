@@ -1,0 +1,193 @@
+"""Exercise the installed sidecar's durable halt lifecycle in one local profile."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import queue
+import re
+import secrets
+import subprocess
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+def entry_digest(profile: Path) -> str:
+    hasher = hashlib.sha256()
+    for directory, label in ((profile, b"root/"), (profile / "data", b"data/")):
+        if not directory.is_dir():
+            continue
+        names = []
+        for path in directory.iterdir():
+            encoded = path.name.encode("utf-16le", "surrogatepass")
+            units = tuple(
+                int.from_bytes(encoded[i : i + 2], "little") for i in range(0, len(encoded), 2)
+            )
+            names.append((units, encoded))
+        for _, encoded in sorted(names):
+            hasher.update(label)
+            hasher.update(encoded)
+            hasher.update(b"\x00\x00")
+    return hasher.hexdigest()
+
+
+class Sidecar:
+    def __init__(self, executable: Path, local_app_data: Path, capability: str) -> None:
+        profile = local_app_data / "LeviathanAI"
+        existed = (profile / "data").exists()
+        digest = entry_digest(profile)
+        env = os.environ.copy()
+        env.update(
+            LOCALAPPDATA=str(local_app_data),
+            LEVIATHAN_DESKTOP_CAPABILITY=capability,
+            LEVIATHAN_DATA_ROOT_PREEXISTED="1" if existed else "0",
+            LEVIATHAN_DATA_ROOT_ENTRY_SHA256=digest,
+        )
+        self.process = subprocess.Popen(
+            [str(executable)],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+        self.lines: list[str] = []
+        self.output: queue.Queue[str] = queue.Queue()
+        assert self.process.stdout is not None
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self) -> None:
+        assert self.process.stdout is not None
+        for line in self.process.stdout:
+            self.lines.append(line.rstrip())
+            self.output.put(line)
+
+    def ready_port(self, *, timeout: float = 25) -> int | None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                line = self.output.get(timeout=0.2)
+            except queue.Empty:
+                if self.process.poll() is not None:
+                    return None
+                continue
+            matched = re.fullmatch(r"LEVIATHAN_READY port=(\d+)\s*", line)
+            if matched:
+                return int(matched.group(1))
+        return None
+
+    def stop(self) -> None:
+        if self.process.poll() is None:
+            self.process.kill()
+        self.process.wait(timeout=10)
+
+
+def api(port: int, capability: str, path: str, *, body: dict[str, str] | None = None) -> dict:
+    origin = f"http://127.0.0.1:{port}"
+    headers = {"X-Leviathan-Capability": capability}
+    payload = None
+    if body is not None:
+        payload = json.dumps(body).encode("utf-8")
+        headers.update({"Origin": origin, "Content-Type": "application/json"})
+    request = urllib.request.Request(origin + path, data=payload, headers=headers)
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200, (path, response.status)
+        return json.load(response)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sidecar", type=Path, required=True)
+    parser.add_argument("--local-app-data", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if not args.sidecar.is_file():
+        raise RuntimeError("Installed sidecar executable is missing")
+    capability = secrets.token_hex(32)
+    profile = args.local_app_data / "LeviathanAI"
+    store = profile / "data/halt-state.sqlite3"
+    observations = []
+
+    first = Sidecar(args.sidecar, args.local_app_data, capability)
+    try:
+        port = first.ready_port()
+        if port is None:
+            raise RuntimeError("Initial installed sidecar was not ready")
+        before = api(port, capability, "/api/risk/status")
+        if before["halted"]:
+            raise RuntimeError("Expected an unhalted profile before the test")
+        engaged = api(port, capability, "/api/omega/kill", body={})
+        if not engaged["halted"] or "omega_kill_signal" not in engaged["active_halts"]:
+            raise RuntimeError("Omega halt was not committed")
+        observations.append(
+            {"phase": "engaged", "port": port, "halted": True, "reasons": engaged["active_halts"]}
+        )
+    finally:
+        first.stop()
+
+    restarted = Sidecar(args.sidecar, args.local_app_data, capability)
+    try:
+        port = restarted.ready_port()
+        if port is None:
+            raise RuntimeError("Restart after engaged halt was not ready")
+        # First HTTP route after readiness must observe the persisted halt.
+        status = api(port, capability, "/api/risk/status")
+        if not status["halted"] or "omega_kill_signal" not in status["active_halts"]:
+            raise RuntimeError("Restart silently cleared the Omega halt")
+        observations.append(
+            {"phase": "restored", "port": port, "halted": True, "reasons": status["active_halts"]}
+        )
+        lifted = api(port, capability, "/api/risk/halt/lift", body={"reason": "omega_kill_signal"})
+        if lifted["halted"] or lifted["active_halts"]:
+            raise RuntimeError("Exact named lift did not commit")
+        observations.append({"phase": "lifted", "port": port, "halted": False, "reasons": []})
+    finally:
+        restarted.stop()
+
+    after_lift = Sidecar(args.sidecar, args.local_app_data, capability)
+    try:
+        port = after_lift.ready_port()
+        if port is None:
+            raise RuntimeError("Restart after lift was not ready")
+        status = api(port, capability, "/api/risk/status")
+        if status["halted"] or status["active_halts"]:
+            raise RuntimeError("Exact lift did not persist after restart")
+        observations.append(
+            {"phase": "lift_persisted", "port": port, "halted": False, "reasons": []}
+        )
+    finally:
+        after_lift.stop()
+
+    if not store.is_file():
+        raise RuntimeError("Durable halt store is missing after lifecycle trial")
+    store.write_bytes(b"intentionally corrupt acceptance copy")
+    corrupt = Sidecar(args.sidecar, args.local_app_data, capability)
+    try:
+        port = corrupt.ready_port(timeout=15)
+        if port is not None or corrupt.process.poll() is None:
+            raise RuntimeError("Corrupt halt store incorrectly reached readiness")
+        observations.append(
+            {"phase": "corrupt_store", "ready": False, "exit": corrupt.process.returncode}
+        )
+    finally:
+        corrupt.stop()
+    result = {
+        "installedSidecar": str(args.sidecar),
+        "isolatedProfile": str(profile),
+        "profileMarkerPresent": (profile / "data/profile.json").is_file(),
+        "observations": observations,
+        "capabilityRecorded": False,
+    }
+    args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

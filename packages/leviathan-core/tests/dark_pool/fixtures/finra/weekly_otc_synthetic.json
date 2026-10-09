@@ -1,0 +1,35 @@
+{
+  "schema": "finra.aggregate.fixture.v1",
+  "verification": "SYNTHETIC_TEST",
+  "license_status": "SYNTHETIC_ONLY",
+  "source_file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "api_revision": "fixture-api-v1",
+  "dataset_id": "finra-weekly-synthetic-v1",
+  "tier": "OTC",
+  "schedule": {
+    "schedule_id": "synthetic-otc-release-calendar-v1",
+    "releases": [
+      {
+        "period_start_ns": 1800000000000000000,
+        "period_end_ns": 1800604800000000000,
+        "published_ns": 1800604810000000000
+      }
+    ]
+  },
+  "rows": [
+    {
+      "security_id": "SYNTH-Y",
+      "period_start_ns": 1800000000000000000,
+      "period_end_ns": 1800604800000000000,
+      "metric_name": "share_volume",
+      "metric_unit": "shares",
+      "metric_value": "45000",
+      "published_ns": 1800604810000000000,
+      "received_ns": 1800604811000000000,
+      "available_ns": 1800604812000000000,
+      "revision_id": "otc-rev-1",
+      "supersedes_revision_id": null,
+      "native_id": "synthetic-otc-row-1"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+Grid mode A uses fixed spacing.
+Grid mode B scales spacing by volatility.
+Out-of-sample lane failed.
+Latency-sensitive run loses at 250 ms.
+Synthetic sale descriptions conflict and are not approved results.
