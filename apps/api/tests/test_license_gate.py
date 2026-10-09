@@ -94,9 +94,9 @@ def test_closed_route_table_covers_catalog_actions_and_only_known_feature_ids() 
 
     actions = _CATALOG_ACTIONS.findall(source)
     action_ids = re.findall(r'action_id:\s*"([^"]+)"', source)
-    assert len(actions) == len(action_ids) == 60
+    assert len(actions) == len(action_ids)
     assert set(FEATURE_ROUTE_FAMILIES_V1) == catalog_features
-    assert FEATURE_ROUTE_FAMILIES_V1["charts"] == ()
+    assert FEATURE_ROUTE_FAMILIES_V1["charts"] == ("/md/chart/ticket",)
     flattened = {
         (route_template, feature)
         for feature, route_templates in FEATURE_ROUTE_FAMILIES_V1.items()
@@ -106,6 +106,8 @@ def test_closed_route_table_covers_catalog_actions_and_only_known_feature_ids() 
     for route_template, feature in actions:
         assert feature in catalog_features
         assert feature_for_path(route_template) == feature
+    catalog_routes = set(actions)
+    assert flattened == catalog_routes
 
     table_paths = [path for path, _feature in ROUTE_FEATURES_V1]
     assert len(table_paths) == len(set(table_paths))
@@ -142,6 +144,31 @@ def test_grace_allows_safe_methods_but_still_applies_feature_gate() -> None:
     assert _body(missing_feature) == {
         "code": "FEATURE_NOT_ENTITLED",
         "feature": "paper_trading",
+    }
+
+
+def test_grace_allows_chart_ticket_as_a_charts_read_action() -> None:
+    middleware = LicenseGateMiddleware(
+        _unused_app,
+        environ={
+            "LEVIATHAN_LICENSE_STATE": "GRACE_READ_ONLY",
+            "LEVIATHAN_LICENSE_FEATURES": "charts",
+        },
+    )
+    allowed = _run_request(middleware, path="/md/chart/ticket", method="POST")
+    assert allowed[0] == 204 and allowed[2] is True
+    denied = LicenseGateMiddleware(
+        _unused_app,
+        environ={
+            "LEVIATHAN_LICENSE_STATE": "GRACE_READ_ONLY",
+            "LEVIATHAN_LICENSE_FEATURES": "",
+        },
+    )
+    missing_feature = _run_request(denied, path="/md/chart/ticket", method="POST")
+    assert missing_feature[0] == 403
+    assert _body(missing_feature) == {
+        "code": "FEATURE_NOT_ENTITLED",
+        "feature": "charts",
     }
 
 

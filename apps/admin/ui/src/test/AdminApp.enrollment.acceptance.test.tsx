@@ -41,8 +41,8 @@ function storageValues(storage: Storage): string[] {
 }
 
 afterEach(() => {
-  window.localStorage.clear()
-  window.sessionStorage.clear()
+  Storage.prototype.clear.call(window.localStorage)
+  Storage.prototype.clear.call(window.sessionStorage)
   vi.restoreAllMocks()
 })
 
@@ -111,7 +111,7 @@ describe('ADMIN-APP-ENROLL-001 acceptance', () => {
     const signInIndexes = requests.flatMap(({ url, init }, index) => url.endsWith('/v1/admin/session') && init?.method === 'POST' ? [index] : [])
     expect(confirmIndex).toBeGreaterThan(signInIndexes[0] ?? -1)
     expect(confirmIndex).toBeLessThan(signInIndexes[1] ?? Number.POSITIVE_INFINITY)
-    expect(requests[confirmIndex]?.url).toBe('https://licensing-worker.invalid/v1/admin/session/enrollment/confirm')
+    expect(requests[confirmIndex]?.url).toBe('https://leviathan-licensing-worker.ocean824.workers.dev/v1/admin/session/enrollment/confirm')
     const confirmBody = JSON.parse(String(requests[confirmIndex]?.init?.body)) as Record<string, unknown>
     expect(confirmBody).toMatchObject({ owner_email: 'owner@example.test', password: PASSWORD, totp_code: CONFIRM_CODE })
     expect(signInIndexes).toHaveLength(2)

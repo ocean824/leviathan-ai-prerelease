@@ -98,10 +98,11 @@ ROUTE_FEATURES_V1: Final[tuple[tuple[str, str], ...]] = (
     ("/data-sources", "data_sources"),
     ("/risk/halt", "live_trading"),
     ("/risk/halt/lift", "admin_console"),
+    ("/md/chart/ticket", "charts"),
 )
 
-# Every catalog feature is represented. `charts` currently has no API action
-# in the source catalog; chart data reads are gated under their own feature.
+# Every catalog feature is represented. Chart-ticket minting opens a read-only
+# chart view and is gated by the `charts` feature.
 FEATURE_ROUTE_FAMILIES_V1: Final = MappingProxyType(
     {
         "paper_trading": tuple(
@@ -120,7 +121,7 @@ FEATURE_ROUTE_FAMILIES_V1: Final = MappingProxyType(
         "chat_terminal": tuple(
             path for path, feature in ROUTE_FEATURES_V1 if feature == "chat_terminal"
         ),
-        "charts": (),
+        "charts": tuple(path for path, feature in ROUTE_FEATURES_V1 if feature == "charts"),
         "connections": tuple(
             path for path, feature in ROUTE_FEATURES_V1 if feature == "connections"
         ),
@@ -135,6 +136,7 @@ FEATURE_ROUTE_FAMILIES_V1: Final = MappingProxyType(
 
 _GRACE_WRITE_ALLOWLIST: Final = frozenset(
     {
+        ("POST", "/md/chart/ticket"),
         ("POST", "/risk/halt"),
         ("POST", "/mcp/halts"),
         ("POST", "/omega/kill"),

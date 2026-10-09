@@ -5,33 +5,49 @@ import {
 } from "../src/manifest.js";
 import {
   createReleaseFeedHandler,
+  type CloudflareReleaseFeedEnv,
   type ClockPort,
   type R2ReadPort,
   type R2TextObjectPort,
 } from "../src/handler.js";
+import releaseFeedWorker from "../src/handler.js";
 
 const FEED_URL = "https://updates.example.test";
 const HOST = "downloads.example.test";
 const ROUTE = "/v1/updates/desktop/windows/x86_64/1.2.2";
 
-interface FakeObject extends R2TextObjectPort {
-  readonly body: string;
+type FakeObject = R2TextObjectPort;
+
+function streamText(value: string): ReadableStream<Uint8Array> {
+  const bytes = new TextEncoder().encode(value);
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
 }
 
 class FakeR2 implements R2ReadPort {
   readonly keys: string[] = [];
   failure: Error | null = null;
   value: string | null = null;
+  asset: Uint8Array | null = null;
   customMetadata: Readonly<Record<string, string>> | null = null;
 
   async get(key: string): Promise<FakeObject | null> {
     this.keys.push(key);
     if (this.failure) throw this.failure;
+    if (key.startsWith("releases/")) {
+      if (this.asset === null) return null;
+      const bytes = new Uint8Array(this.asset);
+      return { size: bytes.byteLength, body: streamText(new TextDecoder().decode(bytes)), text: async () => "" };
+    }
     if (this.value === null) return null;
     return {
       size: new TextEncoder().encode(this.value).byteLength,
       customMetadata: this.customMetadata ?? undefined,
-      body: this.value,
+      body: streamText(this.value),
       text: async () => this.value ?? "",
     };
   }
@@ -83,6 +99,33 @@ function request(path = ROUTE, method = "GET"): Request {
 }
 
 describe("release feed worker", () => {
+  it("exposes a content-free health check only when runtime bindings are configured", async () => {
+    const r2 = new FakeR2();
+    const env: CloudflareReleaseFeedEnv = { RELEASES: r2, ALLOWED_ARTIFACT_HOSTS: "", MANIFEST_CACHE_TTL_SECONDS: "60" };
+    const healthy = await releaseFeedWorker.fetch(request("/health"), env);
+    expect(healthy.status).toBe(200);
+    expect(await healthy.json()).toEqual({ status: "ok" });
+    const unready = await releaseFeedWorker.fetch(request("/health"), { ...env, MANIFEST_CACHE_TTL_SECONDS: "0" });
+    expect(unready.status).toBe(503);
+  });
+
+  it("streams only validated immutable release asset keys from R2", async () => {
+    const { handler, r2 } = setup();
+    r2.asset = new TextEncoder().encode("synthetic installer bytes");
+    const response = await handler(request("/releases/desktop/1.2.3/Leviathan-setup.exe"));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("synthetic installer bytes");
+    expect(r2.keys).toEqual(["releases/desktop/1.2.3/Leviathan-setup.exe"]);
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("rejects malformed release asset paths without an R2 lookup", async () => {
+    const { handler, r2 } = setup();
+    const response = await handler(request("/releases/desktop/../secret"));
+    expect(response.status).toBe(404);
+    expect(r2.keys).toEqual([]);
+  });
+
   it("serves validated Tauri v2 metadata from the channel-specific R2 key", async () => {
     const { handler, r2 } = setup();
     r2.value = JSON.stringify(makeManifest());

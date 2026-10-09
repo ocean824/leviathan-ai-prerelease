@@ -32,11 +32,19 @@ from leviathan_vault.transaction import (
 )
 
 FIELD_LABELS = {
-    "KEY": "API_KEY", "API KEY": "API_KEY", "API_KEY": "API_KEY",
-    "X API KEY": "API_KEY", "API TOKEN": "API_KEY",
-    "SECRET": "SECRET", "API SECRET": "API_SECRET", "HEADER": "HEADER",
-    "TOKEN": "TOKEN", "ACCESS TOKEN": "ACCESS_TOKEN", "CREDENTIAL": "CREDENTIAL",
-    "ACCOUNT ID": "ACCOUNT_ID", "CLIENT ID": "CLIENT_ID",
+    "KEY": "API_KEY",
+    "API KEY": "API_KEY",
+    "API_KEY": "API_KEY",
+    "X API KEY": "API_KEY",
+    "API TOKEN": "API_KEY",
+    "SECRET": "SECRET",
+    "API SECRET": "API_SECRET",
+    "HEADER": "HEADER",
+    "TOKEN": "TOKEN",
+    "ACCESS TOKEN": "ACCESS_TOKEN",
+    "CREDENTIAL": "CREDENTIAL",
+    "ACCOUNT ID": "ACCOUNT_ID",
+    "CLIENT ID": "CLIENT_ID",
 }
 LOGIN_RE = re.compile(r"\b(login|password|e-?mail)\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", re.I)
 ALIAS_RE = re.compile(r"\bsame\s+([A-Za-z][A-Za-z0-9 ._-]*)\s+key\b", re.I)
@@ -148,8 +156,7 @@ def parse_key_text(text: str) -> ImportPlan:
             return
         alias_lines = [ALIAS_RE.search(line) for line in block]
         aliases_only = any(alias_lines) and all(
-            URL_RE.match(line) or ALIAS_RE.search(line) or NO_KEY_RE.search(line)
-            for line in block
+            URL_RE.match(line) or ALIAS_RE.search(line) or NO_KEY_RE.search(line) for line in block
         )
         if aliases_only:
             for alias in alias_lines:
@@ -157,9 +164,9 @@ def parse_key_text(text: str) -> ImportPlan:
                     target, environment = _designation(_provider(alias.group(1)))
                     if provider in DESIGNATIONS and _designation(provider)[1] != environment:
                         raise ImportErrorCode("IMPORT_FORMAT_DENIED")
-                    aliases.append(ManifestAlias(
-                        provider, target, f"{target}_API_KEY", environment
-                    ))
+                    aliases.append(
+                        ManifestAlias(provider, target, f"{target}_API_KEY", environment)
+                    )
             provider, block = None, []
             return
         if all(URL_RE.match(line) or NO_KEY_RE.search(line) for line in block):
@@ -174,9 +181,9 @@ def parse_key_text(text: str) -> ImportPlan:
                 target, target_environment = _designation(_provider(alias.group(1)))
                 if target_environment != environment:
                     raise ImportErrorCode("IMPORT_FORMAT_DENIED")
-                aliases.append(ManifestAlias(
-                    canonical_provider, target, f"{target}_API_KEY", environment
-                ))
+                aliases.append(
+                    ManifestAlias(canonical_provider, target, f"{target}_API_KEY", environment)
+                )
                 continue
             if URL_RE.match(line) or NO_KEY_RE.search(line):
                 continue
@@ -200,11 +207,19 @@ def parse_key_text(text: str) -> ImportPlan:
                     validate_identity(name, "leviathan-ai", environment)
                 except VaultError:
                     raise ImportErrorCode("IMPORT_FORMAT_DENIED") from None
-                credentials.append(ParsedCredential(
-                    canonical_provider, name, environment, value,
-                    ("public-configuration" if field_name in {"ACCOUNT_ID", "CLIENT_ID"}
-                     else "secret"),
-                ))
+                credentials.append(
+                    ParsedCredential(
+                        canonical_provider,
+                        name,
+                        environment,
+                        value,
+                        (
+                            "public-configuration"
+                            if field_name in {"ACCOUNT_ID", "CLIENT_ID"}
+                            else "secret"
+                        ),
+                    )
+                )
                 found += 1
         if found == 0 and not any(alias.provider == provider for alias in aliases):
             requires.append(provider)
@@ -269,8 +284,12 @@ def _atomic_json(path: Path, document: dict[str, Any]) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=path.parent,
-            prefix=".pending-", suffix=".json", delete=False,
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=".pending-",
+            suffix=".json",
+            delete=False,
         ) as handle:
             temporary = Path(handle.name)
             json.dump(document, handle, indent=2, ensure_ascii=False)
@@ -291,20 +310,29 @@ def _preflight_replaceable(path: Path, code: str) -> None:
         if os.name != "nt":
             raise OSError
         _deny_reparse(path)
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
         kernel32.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
         kernel32.GetFileAttributesW.restype = ctypes.c_uint32
         kernel32.CreateFileW.argtypes = [
-            ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p,
-            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
         ]
         kernel32.CreateFileW.restype = ctypes.c_void_p
         kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
         kernel32.CloseHandle.restype = ctypes.c_int
         attributes = kernel32.GetFileAttributesW(str(path))
         parent_attributes = kernel32.GetFileAttributesW(str(path.parent))
-        if (attributes == 0xFFFFFFFF or attributes & 0x1
-                or parent_attributes == 0xFFFFFFFF or not parent_attributes & 0x10):
+        if (
+            attributes == 0xFFFFFFFF
+            or attributes & 0x1
+            or parent_attributes == 0xFFFFFFFF
+            or not parent_attributes & 0x10
+        ):
             raise OSError
         share_all = 0x1 | 0x2 | 0x4
         for candidate, access, flags in (
@@ -312,17 +340,29 @@ def _preflight_replaceable(path: Path, code: str) -> None:
             (path.parent, 0x0002 | 0x0040, 0x02000000),  # ADD_FILE, DELETE_CHILD
         ):
             handle = kernel32.CreateFileW(
-                str(candidate), access, share_all, None, 3, flags, None,
+                str(candidate),
+                access,
+                share_all,
+                None,
+                3,
+                flags,
+                None,
             )
             if handle in (None, ctypes.c_void_p(-1).value):
                 raise OSError
             kernel32.CloseHandle(handle)
         with tempfile.NamedTemporaryFile(
-            "wb", dir=path.parent, prefix=".xyra-replace-probe-", delete=False,
+            "wb",
+            dir=path.parent,
+            prefix=".xyra-replace-probe-",
+            delete=False,
         ) as handle:
             first = Path(handle.name)
         with tempfile.NamedTemporaryFile(
-            "wb", dir=path.parent, prefix=".xyra-replace-probe-", delete=False,
+            "wb",
+            dir=path.parent,
+            prefix=".xyra-replace-probe-",
+            delete=False,
         ) as handle:
             second = Path(handle.name)
         os.replace(first, second)
@@ -367,16 +407,25 @@ def _broker_write(factory_root: Path, item: ParsedCredential, scope: str, replac
     if executable is None:
         raise ImportErrorCode("SECRET_WRITE_FAILED")
     env = os.environ.copy()
-    env.update({
-        "XYRA_FACTORY_ROOT": str(factory_root), "XYRA_SECRET_NAME": item.name,
-        "XYRA_SECRET_SCOPE": scope, "XYRA_SECRET_ENVIRONMENT": item.environment,
-        "XYRA_SECRET_REPLACE": "1" if replace else "0",
-    })
+    env.update(
+        {
+            "XYRA_FACTORY_ROOT": str(factory_root),
+            "XYRA_SECRET_NAME": item.name,
+            "XYRA_SECRET_SCOPE": scope,
+            "XYRA_SECRET_ENVIRONMENT": item.environment,
+            "XYRA_SECRET_REPLACE": "1" if replace else "0",
+        }
+    )
     try:
         result = subprocess.run(
             [executable, "-NoProfile", "-NonInteractive", "-Command", _BROKER_SCRIPT],
-            input=item.value, text=True, encoding="utf-8", capture_output=True,
-            env=env, timeout=60, check=False,
+            input=item.value,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            env=env,
+            timeout=60,
+            check=False,
         )
         if result.returncode:
             raise ImportErrorCode("SECRET_WRITE_FAILED")
@@ -400,7 +449,9 @@ def _binding_key(item: dict[str, Any], *, project_only: bool = False) -> tuple[s
 
 
 def _prepare_bindings(
-    path: Path, plan: ImportPlan, scope: str,
+    path: Path,
+    plan: ImportPlan,
+    scope: str,
     selected: list[tuple[ParsedCredential, bool]],
     valid_targets: set[tuple[str, str, str]],
 ) -> dict[str, Any]:
@@ -410,8 +461,9 @@ def _prepare_bindings(
         aliases: list[dict[str, Any]] = document["aliases"]
         if not isinstance(bindings, list) or not isinstance(aliases, list):
             raise TypeError
-        binding_keys = {_binding_key(existing_binding, project_only=True)
-                        for existing_binding in bindings}
+        binding_keys = {
+            _binding_key(existing_binding, project_only=True) for existing_binding in bindings
+        }
         if len(binding_keys) != len(bindings):
             raise ValueError
         edges: dict[tuple[str, str, str], tuple[str, str, str]] = {}
@@ -419,8 +471,7 @@ def _prepare_bindings(
             key = _binding_key(existing_alias, project_only=True)
             target = _binding_key(existing_alias["target"], project_only=True)
             source_designation = _slug(existing_alias["provider"])
-            if (source_designation in DESIGNATIONS
-                    and _designation(source_designation)[1] != key[2]):
+            if source_designation in DESIGNATIONS and _designation(source_designation)[1] != key[2]:
                 raise ValueError
             if key[1:] != target[1:]:
                 raise ValueError
@@ -428,45 +479,58 @@ def _prepare_bindings(
                 raise ValueError
             edges[key] = target
         pending_bindings: list[dict[str, Any]] = []
-        selected_keys = {(credential.name, scope, credential.environment)
-                         for credential, _ in selected}
-        plan_keys = {(credential.name, scope, credential.environment)
-                     for credential in plan.credentials}
+        selected_keys = {
+            (credential.name, scope, credential.environment) for credential, _ in selected
+        }
+        plan_keys = {
+            (credential.name, scope, credential.environment) for credential in plan.credentials
+        }
         touched_providers = {
             (credential.provider.lower().replace("_", "-"), credential.environment)
             for credential in plan.credentials
         }
         for existing_binding in bindings:
-            if (existing_binding.get("state") == "pending_import"
-                    and (existing_binding.get("provider"),
-                         existing_binding.get("environment")) in touched_providers
-                    and _binding_key(existing_binding, project_only=True) not in plan_keys):
+            if (
+                existing_binding.get("state") == "pending_import"
+                and (existing_binding.get("provider"), existing_binding.get("environment"))
+                in touched_providers
+                and _binding_key(existing_binding, project_only=True) not in plan_keys
+            ):
                 raise ValueError
         for existing_binding in bindings:
-            if (_binding_key(existing_binding) in selected_keys
-                    and existing_binding.get("state") in {
-                        "pending_import", "registry_entry_present_unverified"
-                    }):
+            if _binding_key(existing_binding) in selected_keys and existing_binding.get(
+                "state"
+            ) in {"pending_import", "registry_entry_present_unverified"}:
                 existing_binding["state"] = "locally_stored"
         for credential in plan.credentials:
             key = credential.name, scope, credential.environment
             if key not in binding_keys:
-                pending_bindings.append({
-                    "provider": credential.provider.lower().replace("_", "-"),
-                    "name": credential.name, "scope": scope,
-                    "environment": credential.environment,
-                    "state": ("locally_stored" if key in selected_keys
-                              else "registry_entry_present_unverified"),
-                })
+                pending_bindings.append(
+                    {
+                        "provider": credential.provider.lower().replace("_", "-"),
+                        "name": credential.name,
+                        "scope": scope,
+                        "environment": credential.environment,
+                        "state": (
+                            "locally_stored"
+                            if key in selected_keys
+                            else "registry_entry_present_unverified"
+                        ),
+                    }
+                )
                 binding_keys.add(key)
         pending_aliases: list[dict[str, Any]] = []
         for alias in plan.aliases:
             canonical_target, target_environment = _designation(alias.target_provider)
-            if (canonical_target != alias.target_provider
-                    or target_environment != alias.environment
-                    or (alias.provider in DESIGNATIONS
-                        and _designation(alias.provider)[1] != alias.environment)
-                    or alias.target_name != f"{canonical_target}_API_KEY"):
+            if (
+                canonical_target != alias.target_provider
+                or target_environment != alias.environment
+                or (
+                    alias.provider in DESIGNATIONS
+                    and _designation(alias.provider)[1] != alias.environment
+                )
+                or alias.target_name != f"{canonical_target}_API_KEY"
+            ):
                 raise ValueError
             key = f"{alias.provider}_API_KEY", scope, alias.environment
             target = alias.target_name, scope, alias.environment
@@ -481,14 +545,20 @@ def _prepare_bindings(
                     raise ValueError
                 continue
             edges[key] = target
-            pending_aliases.append({
-                "provider": alias.provider.lower().replace("_", "-"),
-                "name": key[0], "scope": scope, "environment": alias.environment,
-                "target": {
-                    "provider": alias.target_provider.lower().replace("_", "-"),
-                    "name": target[0], "scope": scope, "environment": alias.environment,
-                },
-            })
+            pending_aliases.append(
+                {
+                    "provider": alias.provider.lower().replace("_", "-"),
+                    "name": key[0],
+                    "scope": scope,
+                    "environment": alias.environment,
+                    "target": {
+                        "provider": alias.target_provider.lower().replace("_", "-"),
+                        "name": target[0],
+                        "scope": scope,
+                        "environment": alias.environment,
+                    },
+                }
+            )
         for source in edges:
             seen: set[tuple[str, str, str]] = set()
             cursor = source
@@ -506,9 +576,16 @@ def _prepare_bindings(
         raise ImportErrorCode("IMPORT_BINDINGS_FAILED") from None
 
 
-def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry_run: bool,
-                        replace: bool, bindings: Path | None,
-                        backup_root: Path | None) -> ImportResult:
+def _import_plan_locked(
+    factory_root: Path,
+    plan: ImportPlan,
+    scope: str,
+    *,
+    dry_run: bool,
+    replace: bool,
+    bindings: Path | None,
+    backup_root: Path | None,
+) -> ImportResult:
     if scope != PROJECT_SCOPE:
         raise VaultError("SECRET_SCOPE_DENIED")
     validate_identity("DUMMY", scope, "development")
@@ -526,10 +603,12 @@ def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry
     for item in plan.credentials:
         validate_identity(item.name, scope, item.environment)
         canonical_provider, expected_environment = _designation(item.provider)
-        if (item.environment not in PROJECT_ENVIRONMENTS
-                or item.provider != canonical_provider
-                or item.environment != expected_environment
-                or not item.name.startswith(f"{canonical_provider}_")):
+        if (
+            item.environment not in PROJECT_ENVIRONMENTS
+            or item.provider != canonical_provider
+            or item.environment != expected_environment
+            or not item.name.startswith(f"{canonical_provider}_")
+        ):
             raise ImportErrorCode("IMPORT_FORMAT_DENIED")
         field_name = item.name.removeprefix(f"{canonical_provider}_")
         if field_name not in set(FIELD_LABELS.values()) or (
@@ -541,9 +620,13 @@ def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry
         )
         if item.classification != classification:
             raise ImportErrorCode("IMPORT_FORMAT_DENIED")
-        matches = [entry for entry in entries if entry.get("name") == item.name
-                   and entry.get("scope") == scope
-                   and entry.get("environment") == item.environment]
+        matches = [
+            entry
+            for entry in entries
+            if entry.get("name") == item.name
+            and entry.get("scope") == scope
+            and entry.get("environment") == item.environment
+        ]
         if len(matches) > 1:
             raise ImportErrorCode("IMPORT_REGISTRY_FAILED")
         if matches and not replace:
@@ -560,17 +643,24 @@ def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry
             if key in registered_keys:
                 raise ImportErrorCode("IMPORT_REGISTRY_FAILED")
             registered_keys.add(key)
-            if (key[1] == PROJECT_SCOPE and key[2] in PROJECT_ENVIRONMENTS
-                    and entry.get("inherit_to_projects") is False
-                    and entry.get("store_reference") == store_reference(*key)):
+            if (
+                key[1] == PROJECT_SCOPE
+                and key[2] in PROJECT_ENVIRONMENTS
+                and entry.get("inherit_to_projects") is False
+                and entry.get("store_reference") == store_reference(*key)
+            ):
                 valid_targets.add(key)
         except ImportErrorCode:
             raise ImportErrorCode("IMPORT_REGISTRY_FAILED") from None
-    valid_targets.update((item.name, scope, item.environment) for item in plan.credentials
-                         if (item.name, scope, item.environment) not in registered_keys)
+    valid_targets.update(
+        (item.name, scope, item.environment)
+        for item in plan.credentials
+        if (item.name, scope, item.environment) not in registered_keys
+    )
     bindings_document = (
         _prepare_bindings(bindings, plan, scope, selected, valid_targets)
-        if bindings is not None else None
+        if bindings is not None
+        else None
     )
     if bindings is not None:
         try:
@@ -587,7 +677,9 @@ def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry
         if bindings is not None:
             _preflight_replaceable(bindings, "IMPORT_BINDINGS_FAILED")
         transaction = ImportTransaction.begin(
-            factory_root, bindings, backup_root,
+            factory_root,
+            bindings,
+            backup_root,
             [(item.name, scope, item.environment) for item, _ in selected],
         )
         error: BaseException | None = None
@@ -622,17 +714,38 @@ def _import_plan_locked(factory_root: Path, plan: ImportPlan, scope: str, *, dry
             if isinstance(error, (ImportErrorCode, VaultError, TransactionError)):
                 raise error
             raise ImportErrorCode("IMPORT_TRANSACTION_FAILED") from None
-    unresolved = tuple(sorted(
-        {item.name for item in plan.credentials}
-        | {f"{item.provider}_API_KEY" for item in plan.aliases}
-    )) if bindings is None else ()
-    return ImportResult(0 if dry_run else len(selected), len(selected) if dry_run else 0,
-                        skipped, len(plan.aliases), len(plan.interactive_login_skipped),
-                        len(plan.requires_key), dry_run, bool(unresolved), unresolved)
+    unresolved = (
+        tuple(
+            sorted(
+                {item.name for item in plan.credentials}
+                | {f"{item.provider}_API_KEY" for item in plan.aliases}
+            )
+        )
+        if bindings is None
+        else ()
+    )
+    return ImportResult(
+        0 if dry_run else len(selected),
+        len(selected) if dry_run else 0,
+        skipped,
+        len(plan.aliases),
+        len(plan.interactive_login_skipped),
+        len(plan.requires_key),
+        dry_run,
+        bool(unresolved),
+        unresolved,
+    )
 
 
-def import_plan(factory_root: Path, plan: ImportPlan, scope: str, *, dry_run: bool = False,
-                replace: bool = False, bindings: Path | None = None) -> ImportResult:
+def import_plan(
+    factory_root: Path,
+    plan: ImportPlan,
+    scope: str,
+    *,
+    dry_run: bool = False,
+    replace: bool = False,
+    bindings: Path | None = None,
+) -> ImportResult:
     if scope != PROJECT_SCOPE:
         raise VaultError("SECRET_SCOPE_DENIED")
     if (plan.credentials or plan.aliases) and bindings is None and not dry_run:
@@ -642,8 +755,15 @@ def import_plan(factory_root: Path, plan: ImportPlan, scope: str, *, dry_run: bo
         if not bindings.is_file():
             raise ImportErrorCode("IMPORT_BINDINGS_FAILED")
     if dry_run:
-        return _import_plan_locked(factory_root, plan, scope, dry_run=True, replace=replace,
-                                   bindings=bindings, backup_root=None)
+        return _import_plan_locked(
+            factory_root,
+            plan,
+            scope,
+            dry_run=True,
+            replace=replace,
+            bindings=bindings,
+            backup_root=None,
+        )
     with import_lock(factory_root) as backup_root:
         # A pending recovery may replace protected targets, so check before it runs.
         _preflight_replaceable(
@@ -652,8 +772,15 @@ def import_plan(factory_root: Path, plan: ImportPlan, scope: str, *, dry_run: bo
         if bindings is not None:
             _preflight_replaceable(bindings, "IMPORT_BINDINGS_FAILED")
         recover_pending(factory_root, bindings, backup_root)
-        return _import_plan_locked(factory_root, plan, scope, dry_run=False, replace=replace,
-                                   bindings=bindings, backup_root=backup_root)
+        return _import_plan_locked(
+            factory_root,
+            plan,
+            scope,
+            dry_run=False,
+            replace=replace,
+            bindings=bindings,
+            backup_root=backup_root,
+        )
 
 
 def _default_factory_root() -> Path:
@@ -680,9 +807,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         plan = parse_key_file(args.source)
-        result = import_plan(args.factory_root or _default_factory_root(), plan, args.scope,
-                             dry_run=args.dry_run, replace=args.replace,
-                             bindings=args.bindings)
+        result = import_plan(
+            args.factory_root or _default_factory_root(),
+            plan,
+            args.scope,
+            dry_run=args.dry_run,
+            replace=args.replace,
+            bindings=args.bindings,
+        )
         print(json.dumps(result.__dict__, sort_keys=True))
         return 0
     except (ImportErrorCode, VaultError, TransactionError) as exc:

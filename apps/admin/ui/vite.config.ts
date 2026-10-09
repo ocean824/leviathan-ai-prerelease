@@ -1,13 +1,14 @@
 ﻿import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const fallbackWorkerOrigin = 'https://licensing-worker.invalid'
+const fallbackWorkerOrigin = 'https://leviathan-licensing-worker.ocean824.workers.dev'
 
 function configuredWorkerOrigin(): string {
   const value = process.env.VITE_ADMIN_WORKER_ORIGIN ?? fallbackWorkerOrigin
   const parsed = new URL(value)
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error('VITE_ADMIN_WORKER_ORIGIN must be an HTTPS origin')
+  const loopbackHttp = parsed.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)
+  if ((!loopbackHttp && parsed.protocol !== 'https:') || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new Error('VITE_ADMIN_WORKER_ORIGIN must be HTTPS or loopback HTTP')
   }
   return parsed.origin
 }

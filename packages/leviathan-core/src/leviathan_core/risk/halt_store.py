@@ -122,7 +122,9 @@ def _check_local_path(path: Path, data_root: Path) -> None:
             raise HaltStoreError("HALT_STORE_PATH_INVALID")
         import ctypes
 
-        drive_type = ctypes.windll.kernel32.GetDriveTypeW(str(Path(path.anchor)))
+        drive_type = getattr(ctypes, "windll").kernel32.GetDriveTypeW(  # noqa: B009
+            str(Path(path.anchor))
+        )
         if drive_type != 3:  # DRIVE_FIXED; never trust a remote/removable profile store.
             raise HaltStoreError("HALT_STORE_PATH_INVALID")
     for part in (data_root, path, path.with_name(path.name + ".lock")):
@@ -136,13 +138,14 @@ def _check_local_path(path: Path, data_root: Path) -> None:
                 raise HaltStoreError("HALT_STORE_PATH_INVALID") from exc
             else:
                 if stat.S_ISLNK(info.st_mode) or (
-                    os.name == "nt" and info.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                    os.name == "nt"
+                    and getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
                 ):
                     raise HaltStoreError("HALT_STORE_PATH_INVALID")
                 if (
                     os.name == "nt"
                     and probe == path
-                    and info.st_file_attributes & stat.FILE_ATTRIBUTE_READONLY
+                    and getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_READONLY
                 ):
                     raise HaltStoreError()
                 if probe == path and info.st_nlink != 1:
@@ -174,7 +177,11 @@ class _WriterLock:
             if os.name == "nt":
                 import msvcrt
 
-                msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
+                getattr(msvcrt, "locking")(  # noqa: B009
+                    self._fd,
+                    getattr(msvcrt, "LK_NBLCK"),  # noqa: B009
+                    1,
+                )
             else:
                 fcntl = importlib.import_module("fcntl")
                 fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -190,7 +197,7 @@ class _WriterLock:
                     import msvcrt
 
                     os.lseek(fd, 0, os.SEEK_SET)
-                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                    getattr(msvcrt, "locking")(fd, getattr(msvcrt, "LK_UNLCK"), 1)  # noqa: B009
                 else:
                     fcntl = importlib.import_module("fcntl")
                     fcntl.flock(fd, fcntl.LOCK_UN)

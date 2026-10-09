@@ -612,6 +612,11 @@ export const workerV1: DataGatewayWorkerV1 = Object.freeze({
       const hasLicenseWorker = typeof env.LICENSE_WORKER?.fetch === "function";
       const hasPublicKey = typeof env.LICENSE_VERIFY_PUBLIC_KEY_JWK === "string" && env.LICENSE_VERIFY_PUBLIC_KEY_JWK.length > 0;
       if (!hasLicenseWorker && !hasPublicKey) return errorResponse(503, "NOT_CONFIGURED");
+      const requestUrl = new URL(request.url);
+      if (requestUrl.pathname === "/health" && request.method === "GET") {
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+      }
       const entitlement = {
         authenticateDeviceBearer: (token: string) => entitlementFromBindings(env, token),
       };

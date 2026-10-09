@@ -33,7 +33,7 @@ describe("licensing Worker composition", () => {
       async transaction<T>(_work: (tx: PgQueryV1) => Promise<T>): Promise<T> { throw new Error("unused"); },
     };
     const bindings: LicenseWorkerBindingsV1 = {
-      DATABASE_URL: "postgres://fixture.invalid/db", STRIPE_SECRET_KEY: "sk_test_fixture",
+      DATABASE_URL: "postgres://fixture.invalid/db", STRIPE_MODE: "test", STRIPE_SECRET_KEY: "sk_test_fixture",
       STRIPE_WEBHOOK_SECRET: "whsec_fixture_secret", STRIPE_PRICE_ID: "price_fixture",
       SIGNUP_SUCCESS_URL: "https://fixture.invalid/success", SIGNUP_CANCEL_URL: "https://fixture.invalid/cancel",
       ADMIN_SESSION_TTL_S: "900", USER_SESSION_TTL_S: "600", CAPS_APPROVED: "false", LICENSE_SIGNING_KEY_ID: "test-key",
@@ -42,6 +42,17 @@ describe("licensing Worker composition", () => {
       ADMIN_TOTP_ENCRYPTION_KEY: btoa(String.fromCharCode(...new Uint8Array(32).fill(1))),
     };
     const worker = await composeLicenseWorkerV1(bindings, { driver });
+    const health = await worker.fetch(new Request("https://worker.test/health"));
+    expect(health.status).toBe(200);
+    expect(await health.json()).toEqual({ status: "ok" });
+    const testRejectsLiveKey = await composeLicenseWorkerV1({ ...bindings, STRIPE_SECRET_KEY: "sk_live_fixture" }, { driver });
+    expect((await testRejectsLiveKey.fetch(new Request("https://worker.test/health"))).status).toBe(503);
+    const liveAcceptsLiveKey = await composeLicenseWorkerV1({ ...bindings,
+      STRIPE_MODE: "live", STRIPE_SECRET_KEY: "sk_live_fixture" }, { driver });
+    expect((await liveAcceptsLiveKey.fetch(new Request("https://worker.test/health"))).status).toBe(200);
+    const liveRejectsTestKey = await composeLicenseWorkerV1({ ...bindings, STRIPE_MODE: "live" }, { driver });
+    expect((await liveRejectsTestKey.fetch(new Request("https://worker.test/health"))).status).toBe(503);
+    entitlementReads = 0;
     const unauthorized = await worker.fetch(new Request("https://worker.test/v1/internal/device-entitlement/verify", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ schema_version: 1, device_token: "invalid" }),

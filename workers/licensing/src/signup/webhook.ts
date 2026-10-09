@@ -201,6 +201,10 @@ export async function signupWebhookRoute(
     let parsed: unknown;
     try { parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw)); }
     catch { throw new SignupDenialV1("EVENT_NOT_ALLOWED"); }
+    if (!isRecord(parsed) || typeof parsed.livemode !== "boolean"
+        || parsed.livemode !== (deps.config.stripe_mode === "live")) {
+      throw new SignupDenialV1("STRIPE_MODE_MISMATCH");
+    }
     const event = await normalizeEvent(parsed, deps, deps.clock.nowUnixSeconds());
     const applied = await deps.webhook_transactions.applyVerifiedEvent(event);
     return new Response(JSON.stringify({ schema_version: 1, request_id: requestId,
@@ -209,6 +213,9 @@ export async function signupWebhookRoute(
       status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (error instanceof SignupDenialV1 && error.code === "STRIPE_MODE_MISMATCH") {
+      try { console.warn("STRIPE_MODE_MISMATCH"); } catch { /* logging must not change rejection */ }
+    }
     return signupErrorResponse(codeFor(error), requestId, observedAtNs);
   }
 }

@@ -27,6 +27,7 @@ function errorStatus(code: SignupErrorCodeV1): number {
     case "INVALID_REQUEST": return 400;
     case "INVALID_SIGNATURE": return 400;
     case "EVENT_NOT_ALLOWED": return 422;
+    case "STRIPE_MODE_MISMATCH": return 422;
     case "EVENT_REPLAY": return 409;
     case "EVENT_OUT_OF_ORDER": return 409;
     case "ACCOUNT_MISMATCH": return 409;

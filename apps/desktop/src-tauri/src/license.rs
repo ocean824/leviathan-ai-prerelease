@@ -1070,7 +1070,7 @@ mod tests {
     #[test]
     fn worker_origin_config_is_one_exact_https_origin() {
         let origin = super::configured_worker_origin().expect("valid build placeholder");
-        assert_eq!(origin, "https://license.invalid");
+        assert_eq!(origin, "https://leviathan-licensing-worker.ocean824.workers.dev");
     }
 
     #[test]

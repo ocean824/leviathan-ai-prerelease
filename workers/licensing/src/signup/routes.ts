@@ -7,6 +7,17 @@ export async function signupRoutes(
   request: Request, deps?: SignupDependenciesV1,
 ): Promise<Response | null> {
   const path = new URL(request.url).pathname;
+  if (path === "/v1/signup/success" || path === "/v1/signup/cancel") {
+    if (request.method !== "GET") {
+      return new Response(null, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
+    }
+    const completed = path.endsWith("/success");
+    return new Response(JSON.stringify({ schema_version: 1, status: completed ? "complete" : "cancelled",
+      message: completed ? "Checkout completed. Return to the Leviathan app." : "Checkout was cancelled. Return to the Leviathan app." }), {
+      status: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+    });
+  }
   if (path !== "/v1/signup/checkout" && path !== "/v1/signup/webhook") return null;
   if (!deps) {
     return new Response(JSON.stringify({ schema_version: 1, request_id: "not-configured",

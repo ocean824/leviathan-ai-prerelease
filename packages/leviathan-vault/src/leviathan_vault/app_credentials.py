@@ -596,7 +596,7 @@ def _blob(data: bytearray) -> tuple[_DataBlob, Any]:
 def _crypt(data: bytearray, entropy: bytearray, *, decrypt: bool) -> bytearray:
     if sys.platform == "darwin":
         try:
-            import keyring
+            import keyring  # type: ignore[import-not-found]
 
             backend = keyring.get_keyring()
             if not backend.__class__.__module__.startswith("keyring.backends.macOS"):
@@ -624,8 +624,8 @@ def _crypt(data: bytearray, entropy: bytearray, *, decrypt: bool) -> bytearray:
     source, source_buffer = _blob(data)
     extra, extra_buffer = _blob(entropy)
     output = _DataBlob()
-    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32 = getattr(ctypes, "WinDLL")("crypt32", use_last_error=True)  # noqa: B009
+    kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
     protect = crypt32.CryptUnprotectData if decrypt else crypt32.CryptProtectData
     protect.restype = ctypes.c_int
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]

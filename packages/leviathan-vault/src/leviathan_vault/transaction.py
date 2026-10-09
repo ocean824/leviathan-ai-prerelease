@@ -40,7 +40,7 @@ def _deny_reparse(path: Path) -> None:
     cursor = path.absolute()
     if os.name != "nt":
         raise TransactionError("IMPORT_PLATFORM_DENIED")
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
     kernel32.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
     kernel32.GetFileAttributesW.restype = ctypes.c_uint32
     while True:
@@ -63,8 +63,12 @@ def _fingerprint(path: Path) -> dict[str, int | str]:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
-    return {"sha256": digest.hexdigest(), "size": stat.st_size,
-            "device": stat.st_dev, "inode": stat.st_ino}
+    return {
+        "sha256": digest.hexdigest(),
+        "size": stat.st_size,
+        "device": stat.st_dev,
+        "inode": stat.st_ino,
+    }
 
 
 _PRIVATE_DIRECTORY_SCRIPT = r"""
@@ -102,10 +106,11 @@ def _protect_backup_root(path: Path) -> None:
         raise TransactionError("IMPORT_LOCKED")
     try:
         result = subprocess.run(
-            [executable, "-NoProfile", "-NonInteractive", "-Command",
-             _PRIVATE_DIRECTORY_SCRIPT],
+            [executable, "-NoProfile", "-NonInteractive", "-Command", _PRIVATE_DIRECTORY_SCRIPT],
             env={**os.environ, "XYRA_IMPORT_BACKUP_ROOT": str(path)},
-            capture_output=True, timeout=30, check=False,
+            capture_output=True,
+            timeout=30,
+            check=False,
         )
         if result.returncode:
             raise TransactionError("IMPORT_LOCKED")
@@ -119,8 +124,12 @@ def _atomic_journal(path: Path, document: dict[str, Any], *, create: bool = Fals
     pending: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=path.parent, prefix=".journal-",
-            suffix=".pending", delete=False,
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=".journal-",
+            suffix=".pending",
+            delete=False,
         ) as handle:
             pending = Path(handle.name)
             json.dump(document, handle, sort_keys=True)
@@ -156,7 +165,11 @@ def import_lock(factory_root: Path) -> Iterator[Path]:
             handle.write(b"\0")
             handle.flush()
         handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        getattr(msvcrt, "locking")(  # noqa: B009
+            handle.fileno(),
+            getattr(msvcrt, "LK_NBLCK"),  # noqa: B009
+            1,
+        )
     except OSError:
         if "handle" in locals():
             handle.close()
@@ -165,13 +178,23 @@ def import_lock(factory_root: Path) -> Iterator[Path]:
         yield backup_root
     finally:
         handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        getattr(msvcrt, "locking")(  # noqa: B009
+            handle.fileno(),
+            getattr(msvcrt, "LK_UNLCK"),  # noqa: B009
+            1,
+        )
         handle.close()
 
 
 class ImportTransaction:
-    def __init__(self, factory_root: Path, bindings: Path | None, backup_root: Path,
-                 txid: str, document: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        factory_root: Path,
+        bindings: Path | None,
+        backup_root: Path,
+        txid: str,
+        document: dict[str, Any],
+    ) -> None:
         self.factory_root = factory_root.absolute()
         self.bindings = bindings.absolute() if bindings is not None else None
         self.backup_root = backup_root
@@ -180,8 +203,13 @@ class ImportTransaction:
         self.document = document
 
     @classmethod
-    def begin(cls, factory_root: Path, bindings: Path | None, backup_root: Path,
-              affected: list[tuple[str, str, str]]) -> ImportTransaction:
+    def begin(
+        cls,
+        factory_root: Path,
+        bindings: Path | None,
+        backup_root: Path,
+        affected: list[tuple[str, str, str]],
+    ) -> ImportTransaction:
         if bindings is None:
             raise TransactionError("IMPORT_SNAPSHOT_FAILED")
         txid = uuid.uuid4().hex
@@ -196,21 +224,28 @@ class ImportTransaction:
             validate_identity(name, scope, environment)
             if scope != PROJECT_SCOPE or environment not in PROJECT_ENVIRONMENTS:
                 raise TransactionError("IMPORT_PATH_DENIED")
-            target = factory_root / ".local" / "secrets" / (
-                f"{scope}--{environment}--{name}.dpapi"
-            )
+            target = factory_root / ".local" / "secrets" / (f"{scope}--{environment}--{name}.dpapi")
             _deny_reparse(target)
             existed = os.path.lexists(target)
             if existed and not target.is_file():
                 raise TransactionError("IMPORT_SNAPSHOT_FAILED")
-            items.append({
-                "role": "secret", "name": name, "scope": scope,
-                "environment": environment, "existed": existed,
-                "original": _fingerprint(target) if existed else None,
-            })
+            items.append(
+                {
+                    "role": "secret",
+                    "name": name,
+                    "scope": scope,
+                    "environment": environment,
+                    "existed": existed,
+                    "original": _fingerprint(target) if existed else None,
+                }
+            )
         document: dict[str, Any] = {
-            "version": 2, "txid": txid, "factory": str(factory_root.absolute()),
-            "bindings": str(bindings.absolute()), "phase": "preparing", "items": items,
+            "version": 2,
+            "txid": txid,
+            "factory": str(factory_root.absolute()),
+            "bindings": str(bindings.absolute()),
+            "phase": "preparing",
+            "items": items,
         }
         transaction = cls(factory_root, bindings, backup_root, txid, document)
         journal_created = False
@@ -220,8 +255,7 @@ class ImportTransaction:
             for item in items:
                 target = transaction._target(item)
                 _deny_reparse(target)
-                for candidate in (_snapshot_path(target, txid),
-                                  transaction._restore_path(target)):
+                for candidate in (_snapshot_path(target, txid), transaction._restore_path(target)):
                     _deny_reparse(candidate)
                     if os.path.lexists(candidate):
                         raise TransactionError("IMPORT_SNAPSHOT_FAILED")
@@ -237,8 +271,10 @@ class ImportTransaction:
                     target = transaction._target(item)
                     snapshot = _snapshot_path(target, txid)
                     os.link(target, snapshot)
-                    if (not os.path.samefile(target, snapshot)
-                            or _fingerprint(snapshot) != item["original"]):
+                    if (
+                        not os.path.samefile(target, snapshot)
+                        or _fingerprint(snapshot) != item["original"]
+                    ):
                         raise TransactionError("IMPORT_SNAPSHOT_FAILED")
             transaction._validated_items(require_complete=True)
             document["phase"] = "applying"
@@ -263,28 +299,31 @@ class ImportTransaction:
             name, scope, environment = item["name"], item["scope"], item["environment"]
             validate_identity(name, scope, environment)
             if scope == PROJECT_SCOPE and environment in PROJECT_ENVIRONMENTS:
-                return self.factory_root / ".local" / "secrets" / (
-                    f"{scope}--{environment}--{name}.dpapi"
+                return (
+                    self.factory_root
+                    / ".local"
+                    / "secrets"
+                    / (f"{scope}--{environment}--{name}.dpapi")
                 )
         raise TransactionError("IMPORT_RECOVERY_FAILED")
 
     def _validated_items(self, *, require_complete: bool = False) -> list[dict[str, Any]]:
         try:
-            if (not isinstance(self.document, dict)
-                    or self.document.get("version") != 2
-                    or self.document.get("txid") != self.txid
-                    or self.document.get("factory") != str(self.factory_root)
-                    or self.document.get("bindings") != (
-                        str(self.bindings) if self.bindings is not None else None)
-                    or self.document.get("phase") not in _PHASES):
+            if (
+                not isinstance(self.document, dict)
+                or self.document.get("version") != 2
+                or self.document.get("txid") != self.txid
+                or self.document.get("factory") != str(self.factory_root)
+                or self.document.get("bindings")
+                != (str(self.bindings) if self.bindings is not None else None)
+                or self.document.get("phase") not in _PHASES
+            ):
                 raise ValueError
             items = cast(list[dict[str, Any]], self.document["items"])
             if not isinstance(items, list) or len(items) < 2:
                 raise ValueError
             roles = [item["role"] for item in items]
-            if roles[:2] != ["registry", "bindings"] or any(
-                role != "secret" for role in roles[2:]
-            ):
+            if roles[:2] != ["registry", "bindings"] or any(role != "secret" for role in roles[2:]):
                 raise ValueError
             secret_keys: set[tuple[str, str, str]] = set()
             for item in items:
@@ -305,12 +344,16 @@ class ImportTransaction:
                 _deny_reparse(restore)
                 original = item["original"]
                 if item["existed"]:
-                    if (not isinstance(original, dict)
-                            or set(original) != {"sha256", "size", "device", "inode"}
-                            or not isinstance(original["sha256"], str)
-                            or not _HASH.fullmatch(original["sha256"])
-                            or any(type(original[field]) is not int or original[field] < 0
-                                   for field in ("size", "device", "inode"))):
+                    if (
+                        not isinstance(original, dict)
+                        or set(original) != {"sha256", "size", "device", "inode"}
+                        or not isinstance(original["sha256"], str)
+                        or not _HASH.fullmatch(original["sha256"])
+                        or any(
+                            type(original[field]) is not int or original[field] < 0
+                            for field in ("size", "device", "inode")
+                        )
+                    ):
                         raise ValueError
                     if os.path.lexists(snapshot):
                         if not snapshot.is_file() or _fingerprint(snapshot) != original:
@@ -320,7 +363,8 @@ class ImportTransaction:
                 elif original is not None or os.path.lexists(snapshot):
                     raise ValueError
                 if os.path.lexists(restore) and (
-                    self.document["phase"] != "applying" or not item["existed"]
+                    self.document["phase"] != "applying"
+                    or not item["existed"]
                     or not os.path.lexists(snapshot)
                     or not os.path.samefile(restore, snapshot)
                 ):
@@ -387,18 +431,19 @@ class ImportTransaction:
             self._cleanup()
 
     @classmethod
-    def recover(cls, factory_root: Path, bindings: Path | None, backup_root: Path,
-                journal_path: Path) -> None:
+    def recover(
+        cls, factory_root: Path, bindings: Path | None, backup_root: Path, journal_path: Path
+    ) -> None:
         try:
             txid = journal_path.stem.removeprefix("tx-")
-            if (not _TX_ID.fullmatch(txid)
-                    or journal_path != backup_root / f"tx-{txid}.json"):
+            if not _TX_ID.fullmatch(txid) or journal_path != backup_root / f"tx-{txid}.json":
                 raise ValueError
             _deny_reparse(journal_path)
             document = cast(dict[str, Any], json.loads(journal_path.read_text(encoding="utf-8")))
             expected_bindings = str(bindings.absolute()) if bindings is not None else None
-            if (document.get("version") != 2
-                    or document.get("factory") != str(factory_root.absolute())):
+            if document.get("version") != 2 or document.get("factory") != str(
+                factory_root.absolute()
+            ):
                 raise ValueError
             if document.get("bindings") != expected_bindings:
                 raise ValueError

@@ -14,6 +14,7 @@ export interface LicenseWorkerBindingsV1 {
   readonly DATABASE_URL?: string;
   readonly HYPERDRIVE?: HyperdriveBindingV1;
   readonly STRIPE_SECRET_KEY?: string;
+  readonly STRIPE_MODE?: "test" | "live";
   readonly STRIPE_WEBHOOK_SECRET?: string;
   readonly STRIPE_PRICE_ID?: string;
   readonly SIGNUP_SUCCESS_URL?: string;
@@ -62,7 +63,10 @@ function configured(env: LicenseWorkerBindingsV1): boolean {
   const hasDatabase = Boolean(env.HYPERDRIVE?.connectionString || env.DATABASE_URL);
   const httpsUrls = [env.SIGNUP_SUCCESS_URL, env.SIGNUP_CANCEL_URL]
     .every((value) => typeof value === "string" && value.startsWith("https://"));
-  return hasDatabase && /^sk_test_[A-Za-z0-9_]+$/.test(env.STRIPE_SECRET_KEY ?? "")
+  const mode = env.STRIPE_MODE ?? "test";
+  const stripeKeyValid = mode === "test" ? /^sk_test_[A-Za-z0-9_]+$/.test(env.STRIPE_SECRET_KEY ?? "")
+    : mode === "live" ? /^sk_live_[A-Za-z0-9_]+$/.test(env.STRIPE_SECRET_KEY ?? "") : false;
+  return hasDatabase && stripeKeyValid
     && /^whsec_[A-Za-z0-9_-]{8,}$/.test(env.STRIPE_WEBHOOK_SECRET ?? "")
     && /^price_[A-Za-z0-9]+$/.test(env.STRIPE_PRICE_ID ?? "") && httpsUrls
     && /^(?:[6-9][0-9]|[1-8][0-9]{2}|900)$/.test(env.ADMIN_SESSION_TTL_S ?? "")
@@ -138,7 +142,8 @@ export async function composeLicenseWorkerV1(
     const driver = overrides.driver ?? makeDriver(env);
     const adminAdapter = createNeonAdminAdapterV1(driver, env.ADMIN_TOTP_ENCRYPTION_KEY!);
     const signup = createNeonSignupAdapterV1(driver, {
-      stripe_secret_key: env.STRIPE_SECRET_KEY!, stripe_price_id: env.STRIPE_PRICE_ID!,
+      stripe_secret_key: env.STRIPE_SECRET_KEY!, stripe_mode: env.STRIPE_MODE ?? "test",
+      stripe_price_id: env.STRIPE_PRICE_ID!,
       caps_approved: env.CAPS_APPROVED === "true",
     }, overrides.fetch ?? fetch);
     const clock = { nowUtcNs: utcNs, nowUnixSeconds: () => Math.floor(Date.now() / 1000) };
@@ -185,12 +190,21 @@ export async function composeLicenseWorkerV1(
       adminApi: admin,
       authApi,
       signupApi: { clock, request_id: () => id("request"),
-        config: { stripe_price_id: env.STRIPE_PRICE_ID!, stripe_webhook_secret: env.STRIPE_WEBHOOK_SECRET!,
+        config: { stripe_mode: env.STRIPE_MODE ?? "test", stripe_price_id: env.STRIPE_PRICE_ID!,
+          stripe_webhook_secret: env.STRIPE_WEBHOOK_SECRET!,
           success_url: env.SIGNUP_SUCCESS_URL!, cancel_url: env.SIGNUP_CANCEL_URL! },
         pending_signups: signup.pending_signups, stripe: signup.stripe, webhook_transactions: signup.webhook_transactions },
     });
     return Object.freeze({ fetch: async (request: Request) => {
       const url = new URL(request.url);
+      if (url.pathname === "/health" && request.method === "GET") {
+        try {
+          const probe = await driver.query<{ readonly ok: number }>("SELECT 1 AS ok", []);
+          if (probe.rows.length !== 1 || probe.rows[0]?.ok !== 1) return failure();
+        } catch { return failure(); }
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+      }
       if (url.pathname === "/v1/internal/device-entitlement/verify") {
         return verifyInternalDeviceToken(request, env, driver, publicKey);
       }

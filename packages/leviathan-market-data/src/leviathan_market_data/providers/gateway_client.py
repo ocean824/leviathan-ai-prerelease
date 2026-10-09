@@ -7,6 +7,7 @@ the Worker environment and are never accepted by this client.
 from __future__ import annotations
 
 import base64
+import os
 import re
 import urllib.error
 import urllib.request
@@ -88,8 +89,13 @@ class GatewayConfigV1:
             parsed = urlsplit(self.base_url)
         except ValueError:
             raise GatewayClientError("INVALID_CONFIG") from None
+        local_http = parsed.scheme == "http" and parsed.hostname in {
+            "127.0.0.1",
+            "localhost",
+            "::1",
+        }
         if (
-            parsed.scheme != "https"
+            (parsed.scheme != "https" and not local_http)
             or not parsed.netloc
             or parsed.username is not None
             or parsed.password is not None
@@ -102,6 +108,20 @@ class GatewayConfigV1:
         ):
             raise GatewayClientError("INVALID_CONFIG")
         object.__setattr__(self, "base_url", f"{parsed.scheme}://{parsed.netloc}")
+
+    @classmethod
+    def from_environment(
+        cls,
+        device_token: str,
+        environ: Mapping[str, str] | None = None,
+    ) -> GatewayConfigV1:
+        """Build the configured client origin while retaining local dev overrides."""
+        values = os.environ if environ is None else environ
+        origin = values.get(
+            "LEVIATHAN_DATA_GATEWAY_URL",
+            "https://leviathan-data-gateway.ocean824.workers.dev",
+        )
+        return cls(origin, device_token)
 
 
 class GatewayCredentialResolverV1:

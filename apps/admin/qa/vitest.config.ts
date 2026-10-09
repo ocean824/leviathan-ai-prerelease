@@ -16,7 +16,7 @@ export default defineConfig({
       vitest: fileURLToPath(new URL('../ui/node_modules/vitest/dist/index.js', import.meta.url)),
     },
   },
-  define: { __ADMIN_WORKER_ORIGIN__: JSON.stringify('https://licensing-worker.invalid') },
+  define: { __ADMIN_WORKER_ORIGIN__: JSON.stringify('https://leviathan-licensing-worker.ocean824.workers.dev') },
   test: {
     environment: 'jsdom',
     setupFiles: ['ui/src/test/setup.ts'],

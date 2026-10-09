@@ -1,4 +1,4 @@
 {
-  "base": "https://releases.invalid",
+  "base": "https://leviathan-release-feed.ocean824.workers.dev",
   "endpoint": "/v1/updates/desktop/{{target}}/{{arch}}/{{current_version}}"
 }

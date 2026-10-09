@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  define: { __ADMIN_WORKER_ORIGIN__: JSON.stringify('https://licensing-worker.invalid') },
+  define: { __ADMIN_WORKER_ORIGIN__: JSON.stringify('https://leviathan-licensing-worker.ocean824.workers.dev') },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

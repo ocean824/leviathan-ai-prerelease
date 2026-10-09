@@ -274,7 +274,7 @@ def test_tauri_platform_configs_keep_macos_packaging_and_windows_semantics() -> 
     windows_config_path = _TREE / "apps/desktop/src-tauri/tauri.conf.json"
     frozen_windows = _json(windows_config_path)
     assert hashlib.sha256(windows_config_path.read_bytes()).hexdigest() == (
-        "122b7c90800305cece8a18a9cb6e49d929e8e94b266bcb3f003324873ed765fa"
+        "9a55edc96e874f195af3f1f58191d13d3a1d58db81ce4cd2c6ca9f983e6b73ff"
     )
     assert frozen_windows["bundle"] == {
         "active": True,

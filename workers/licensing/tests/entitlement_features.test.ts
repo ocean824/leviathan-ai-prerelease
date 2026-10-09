@@ -116,6 +116,12 @@ async function currentMountedApiRouteIds(): Promise<string[]> {
 }
 
 describe("closed entitlement feature catalog", () => {
+  it("binds chart ticket minting to charts as a read action", () => {
+    expect(featureForApiActionV1("POST", "/md/chart/ticket")).toBe("charts");
+    expect(API_FEATURE_ACTIONS_V1.find((action) => action.action_id === "POST /md/chart/ticket"))
+      .toMatchObject({ feature_key: "charts", classification: "READ", registration: "MOUNTED" });
+  });
+
   it("maps every current terminal navigation registry code exactly once", () => {
     const registryCodes = REGISTRY.map((entry) => entry.code);
     expect(catalogCompletenessErrorV1(registryCodes)).toBeNull();

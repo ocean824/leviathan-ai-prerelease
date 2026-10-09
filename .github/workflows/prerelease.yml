@@ -1,0 +1,78 @@
+name: Publish internal pre-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit SHA used by both installer builds
+        required: true
+        type: string
+      tag:
+        description: Pre-release tag (for example v0.1.0-pre.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prerelease-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Find successful installer builds for the requested commit
+        id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_COMMIT: ${{ inputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          [[ "$REQUESTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "commit must be a full SHA-1" >&2; exit 2; }
+          [[ "$RELEASE_TAG" =~ ^v0\.[0-9]+\.[0-9]+-pre\.[1-9][0-9]*$ ]] || { echo "tag must match v0.x.y-pre.N" >&2; exit 2; }
+          gh api "repos/$GH_REPO/commits/$REQUESTED_COMMIT" >/dev/null
+          for spec in 'macos-build.yml:leviathan-macos-x86_64-dmg:mac_run' 'windows-build.yml:leviathan-windows-x64-exe:windows_run'; do
+            IFS=: read -r workflow artifact output <<<"$spec"
+            run_id="$(gh run list --repo "$GH_REPO" --workflow "$workflow" --commit "$REQUESTED_COMMIT" --status success --limit 20 --json databaseId,headSha --jq ".[] | select(.headSha == \"$REQUESTED_COMMIT\") | .databaseId" | head -n 1)"
+            [[ -n "$run_id" ]] || { echo "No successful $workflow run for requested commit" >&2; exit 1; }
+            echo "$output=$run_id" >> "$GITHUB_OUTPUT"
+          done
+          if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Download the matching installer artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MAC_RUN: ${{ steps.runs.outputs.mac_run }}
+          WINDOWS_RUN: ${{ steps.runs.outputs.windows_run }}
+        shell: bash
+        run: |
+          mkdir -p release-artifacts/macos release-artifacts/windows
+          gh run download "$MAC_RUN" --repo "$GH_REPO" --name leviathan-macos-x86_64-dmg --dir release-artifacts/macos
+          gh run download "$WINDOWS_RUN" --repo "$GH_REPO" --name leviathan-windows-x64-exe --dir release-artifacts/windows
+          mapfile -t dmg_files < <(find release-artifacts/macos -type f -name '*.dmg')
+          mapfile -t exe_files < <(find release-artifacts/windows -type f -name '*-setup.exe')
+          [[ ${#dmg_files[@]} -eq 1 && ${#exe_files[@]} -eq 1 ]] || { echo 'Expected one DMG and one NSIS EXE' >&2; exit 1; }
+          printf '%s\n' "${dmg_files[0]}" "${exe_files[0]}" > release-artifacts/files.txt
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_COMMIT: ${{ inputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          mapfile -t files < release-artifacts/files.txt
+          gh release create "$RELEASE_TAG" "${files[@]}" --repo "$GH_REPO" --target "$REQUESTED_COMMIT" --title "$RELEASE_TAG" --notes "Internal pre-release build for commit $REQUESTED_COMMIT. Unsigned installers; see the repository README and macOS test checklist." --prerelease

@@ -48,6 +48,15 @@ def test_client_requires_tls_and_hides_invalid_configuration() -> None:
     assert "synthetic-device-bearer" not in str(caught.value)
 
 
+def test_environment_origin_defaults_to_workers_dev_and_allows_loopback_override() -> None:
+    default = GatewayConfigV1.from_environment("synthetic-device-bearer", {})
+    local = GatewayConfigV1.from_environment(
+        "synthetic-device-bearer", {"LEVIATHAN_DATA_GATEWAY_URL": "http://127.0.0.1:8788"}
+    )
+    assert default.base_url == "https://leviathan-data-gateway.ocean824.workers.dev"
+    assert local.base_url == "http://127.0.0.1:8788"
+
+
 def test_gateway_get_maps_origin_strips_provider_auth_and_disables_redirects() -> None:
     config = GatewayConfigV1("https://gateway.example/", "synthetic-device-bearer")
     fake = _FakeGatewayHttpPort()

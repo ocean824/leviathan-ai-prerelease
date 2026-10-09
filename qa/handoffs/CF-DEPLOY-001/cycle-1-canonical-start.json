@@ -1,0 +1,288 @@
+﻿{
+    "schema_version":  "cf-deploy001-canonical-start/v1",
+    "source_worktree":  "C:\\Users\\XYRASYSTEMS\\TRAYCER MASTER TEMPLATE\\XYRA-MASTER\\projects\\XYRASYSTEMS\\LEVIATHAN AI\\repo",
+    "source_head":  "d3208136d1872cf6e0bb33ec79aa06f01de98562",
+    "copied_worktree":  "C:\\Users\\XYRASYSTEMS\\.traycer\\worktrees\\local__repo__72e9e418f8\\feature-cf-deploy001-cycle1-1dda211d9244",
+    "virtual_environment_copied":  false,
+    "excluded_at_least":  [
+                              ".git",
+                              ".venv",
+                              "node_modules",
+                              "target",
+                              "dist",
+                              ".pytest_cache",
+                              ".mypy_cache"
+                          ],
+    "files":  [
+                  {
+                      "path":  "workers/licensing/wrangler.toml",
+                      "status":  "present",
+                      "sha256":  "f48ba7d9c319f845695deba26d66c3c63816ac341bdc2e6e6d7a50738011a07b"
+                  },
+                  {
+                      "path":  "workers/licensing/src/worker/compose.ts",
+                      "status":  "present",
+                      "sha256":  "e37a4fa09bf13c057286696fcba591d9b8d7eb844b34a4f0ce10bd5469285677"
+                  },
+                  {
+                      "path":  "workers/licensing/src/worker/handler.ts",
+                      "status":  "present",
+                      "sha256":  "6e14ba07e8ed5750d39b7a87950151c4fab5d330cc73f9a985a7d792c85bf555"
+                  },
+                  {
+                      "path":  "workers/licensing/src/signup/routes.ts",
+                      "status":  "present",
+                      "sha256":  "d829a54ae16d3479814b261138784bce3617f13df1b842b0608075fa74f0fc46"
+                  },
+                  {
+                      "path":  "workers/licensing/tests/compose.test.ts",
+                      "status":  "present",
+                      "sha256":  "0db8c1931ff9d6d2dc84b20f57b2d3c64b3953601fbd80f35a9c9ce87f4e1557"
+                  },
+                  {
+                      "path":  "workers/licensing/tests/worker.test.ts",
+                      "status":  "present",
+                      "sha256":  "e6ae3866070c0e2abb1093aa88740a6fef5c2604561ddf61b53a7eb0e787e2ee"
+                  },
+                  {
+                      "path":  "workers/release-feed/wrangler.toml",
+                      "status":  "present",
+                      "sha256":  "63e458c1f8106c48e0882d6fe0ff0afde1fc3e4f02b4ca264c33c3ab78d4e0ac"
+                  },
+                  {
+                      "path":  "workers/release-feed/src/handler.ts",
+                      "status":  "present",
+                      "sha256":  "cdee49f3fd2b674001d12a17be9f0cb37d4f19b28c1c2f90c7d3c2003714c812"
+                  },
+                  {
+                      "path":  "workers/release-feed/tests/feed.test.ts",
+                      "status":  "present",
+                      "sha256":  "7dd1d56669641fcfe43d2b846a4b743dc461a56b0554c8544a69b514456be87a"
+                  },
+                  {
+                      "path":  "workers/data-gateway/wrangler.toml",
+                      "status":  "present",
+                      "sha256":  "ecfd2e10e293978b763a33680ad214396ac66dc97fe3872a87d84c32d0ea092d"
+                  },
+                  {
+                      "path":  "workers/data-gateway/src/handler.ts",
+                      "status":  "present",
+                      "sha256":  "ed01b4126e08767f3f5f870c84555cfb46a68b278cb57f581cb292bb69be071d"
+                  },
+                  {
+                      "path":  "workers/data-gateway/tests/gateway.unit.test.ts",
+                      "status":  "present",
+                      "sha256":  "0b20b0926e1c9f7d761603e750a413d9e2f6ca868b2314e3aced4d36d45e1a42"
+                  },
+                  {
+                      "path":  "infra/release/feed.json",
+                      "status":  "present",
+                      "sha256":  "a03ac2344aa01dcc700bb28f66069cafddf321f2bcea84fe206c501503d7f9c0"
+                  },
+                  {
+                      "path":  "infra/release/license_worker.json",
+                      "status":  "present",
+                      "sha256":  "e9601b152afc668d9a3a4073738043ccffae5e9313c60369ee657028cbb19d9c"
+                  },
+                  {
+                      "path":  "infra/release/tests/test_update001_acceptance.py",
+                      "status":  "present",
+                      "sha256":  "6921638855ea22b5c5efbaca1d475d0b47c25cd0f9621e19e13a7a03df45c570"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/tauri.conf.json",
+                      "status":  "present",
+                      "sha256":  "122b7c90800305cece8a18a9cb6e49d929e8e94b266bcb3f003324873ed765fa"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/license.rs",
+                      "status":  "present",
+                      "sha256":  "a6fa16891dabf06571baac1e24a9aebc01e6bd5fb082cc98f4f8d974843213b8"
+                  },
+                  {
+                      "path":  "apps/admin/src-tauri/tauri.conf.json",
+                      "status":  "present",
+                      "sha256":  "d45a6fdd3b269e5f919720442625b870c85d5b682bd21c99dc7866558f414350"
+                  },
+                  {
+                      "path":  "apps/admin/ui/vite.config.ts",
+                      "status":  "present",
+                      "sha256":  "aa462bf9591e27695360b0ff2bbaa9a5c11afa66067bbd310d073affff861d40"
+                  },
+                  {
+                      "path":  "apps/admin/ui/vitest.config.ts",
+                      "status":  "present",
+                      "sha256":  "aa46c62d85def4952156e039dafd0907f108acc69fc50a0e484a8c3713b4af12"
+                  },
+                  {
+                      "path":  "apps/admin/qa/vitest.config.ts",
+                      "status":  "present",
+                      "sha256":  "17339765b53c96eb6ca62d927f83bf3d9c2042dbfc708071ee7cc55206826eba"
+                  },
+                  {
+                      "path":  "apps/admin/scripts/build.ps1",
+                      "status":  "present",
+                      "sha256":  "e5733eee23311ad7a50758d53500a68742cd8728048522cfb2d540c3b075b36a"
+                  },
+                  {
+                      "path":  "apps/admin/ui/src/test/AdminApp.enrollment.acceptance.test.tsx",
+                      "status":  "present",
+                      "sha256":  "1fb71351b2592bc0e4df8e66919e5918feb8d73ce675d92bddc1e21fa4dfa68d"
+                  },
+                  {
+                      "path":  "apps/admin/qa/test_admin_app_acceptance.py",
+                      "status":  "present",
+                      "sha256":  "dd9cdd1bc155deb0dd22d733ef2fc4bccf0043858ace65c3437ec9bf67354ccc"
+                  },
+                  {
+                      "path":  "packages/leviathan-market-data/src/leviathan_market_data/providers/gateway_client.py",
+                      "status":  "present",
+                      "sha256":  "0bf4e7b59eb1ba4eca3e160b86e886dd7a12563cf58e1ea160dd01b0bc7942e9"
+                  },
+                  {
+                      "path":  "packages/leviathan-market-data/tests/wave34/test_gateway_client.py",
+                      "status":  "present",
+                      "sha256":  "ebc2bf9c1c75326d3fac326b741aa10a084d8f95e4ee5e92b18c48e6fe1a8b17"
+                  },
+                  {
+                      "path":  "infra/release/cloudflare/Deploy-LeviathanWorkers.ps1",
+                      "status":  "absent",
+                      "sha256":  null
+                  },
+                  {
+                      "path":  "infra/release/cloudflare/SECRET_REGISTRY.entries.json",
+                      "status":  "absent",
+                      "sha256":  null
+                  },
+                  {
+                      "path":  "infra/release/cloudflare/README.md",
+                      "status":  "absent",
+                      "sha256":  null
+                  },
+                  {
+                      "path":  "infra/release/tests/test_cf_deploy001_acceptance.py",
+                      "status":  "absent",
+                      "sha256":  null
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/tauri.macos.conf.json",
+                      "status":  "present",
+                      "sha256":  "f5bfc91ad367582edd925ae9a7056a2ad85c4b73f9110d57861f2c97216c3273"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/Cargo.toml",
+                      "status":  "present",
+                      "sha256":  "723adf2883df62250bfd17396bfa5885216f5cfd446a9ab1e1f2e78f5e39bb04"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/Cargo.lock",
+                      "status":  "present",
+                      "sha256":  "906a8a290b47cb711fd1f06a740982140146d8787c6d832ce8bf893b732f318d"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/lib.rs",
+                      "status":  "present",
+                      "sha256":  "33a83619b73a01733b36e33cb8aca580e4a4ade74dbaa72fe3ab98571af90f33"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/main.rs",
+                      "status":  "present",
+                      "sha256":  "16e2aa0d08efda3ffc4e0631d8295b6d5ec5419a238c4d3b38d4f42ec3a3289e"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/platform/mod.rs",
+                      "status":  "present",
+                      "sha256":  "57ef2d4172ebe668d6b17c3a9bcdfe30f5a02c6e5dea514d7e837605f44e6522"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/platform/windows.rs",
+                      "status":  "present",
+                      "sha256":  "0c320220cba55586e7b5690266823f0244478a9b5d93affbd7c263bb8c1d5fcd"
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/platform/macos.rs",
+                      "status":  "present",
+                      "sha256":  "543de789ca2a41fe3806ac7234c27bc838e40be1d0a29be429008923612529b1"
+                  },
+                  {
+                      "path":  "apps/desktop/README.md",
+                      "status":  "present",
+                      "sha256":  "02facf90724ff13d66be22573dc00827af11266009e57c51069f23e21c51eb53"
+                  },
+                  {
+                      "path":  "apps/desktop/MACOS_INTERNAL_TESTING.md",
+                      "status":  "present",
+                      "sha256":  "bdfd9af98146f13c8dca6fec4e2ce08519f119e38029073b3799007ebd39c5cf"
+                  },
+                  {
+                      "path":  "infra/release/feed_manifest.py",
+                      "status":  "present",
+                      "sha256":  "0b91425f7d006af96b03f9e909a4c426b3761cad58c29854e08ccbb81c13dcf0"
+                  },
+                  {
+                      "path":  "infra/release/tests/test_feed_manifest.py",
+                      "status":  "present",
+                      "sha256":  "16bd94a40c6971cabd8a4a5ece6830d2491c6de2d43e65e8cdf737a7cc0f9c2d"
+                  },
+                  {
+                      "path":  "qa/acceptance/pkg_mac_001_phase_a/test_pkg_mac_001_phase_a_acceptance.py",
+                      "status":  "present",
+                      "sha256":  "b6cb4dc4dc70a71769a21d76770c40cdae0511d1d6104375fe217e24e3d86953"
+                  },
+                  {
+                      "path":  "qa/pkg-mac-001/phase-a-freeze.md",
+                      "status":  "present",
+                      "sha256":  "c6c5974af975666b40f6bbe36a994d1ce5134af99577d0f20c8846af146273e0"
+                  },
+                  {
+                      "path":  "qa/pkg-mac-001-phase-b-ci/freeze-ledger.md",
+                      "status":  "present",
+                      "sha256":  "587210c9293c69e69b4fdb870fefcc6116226c8ca076050fba8c90b70002dd57"
+                  },
+                  {
+                      "path":  "apps/api/src/leviathan_api/main.py",
+                      "status":  "present",
+                      "sha256":  "3d596400d1024b51489687cbb01611b3e031455e293c077666cdba1ba76e93c2"
+                  },
+                  {
+                      "path":  "workers/licensing/src/signup/webhook.ts",
+                      "status":  "present",
+                      "sha256":  "a58752c1c25fa0f7ae5b031f2481128d8583a7a0c62dc36da37009032ffad43c"
+                  },
+                  {
+                      "path":  "workers/licensing/src/signup/models.ts",
+                      "status":  "present",
+                      "sha256":  "98138dfb658bbefdd58a25c4e36dd3e79b47cceeca9f8f04667fd78cfe1c1b2c"
+                  },
+                  {
+                      "path":  "workers/licensing/src/signup/handler.ts",
+                      "status":  "present",
+                      "sha256":  "7727785ed02bc0fcdc64afc7b3431c66deb5884464f06ef353e79edd9ce31787"
+                  },
+                  {
+                      "path":  "workers/licensing/tests/signup.test.ts",
+                      "status":  "present",
+                      "sha256":  "5fc729a925368f974ed4f80c8e26c8cf57d1738c67a3d25b74178314e9c1a2e5"
+                  },
+                  {
+                      "path":  "workers/licensing/tests/test_signup_acceptance.py",
+                      "status":  "present",
+                      "sha256":  "c68bd747374a880e439d6e2008f0ef12944f72faa2eecb4ac8d58fe3e88f7e20"
+                  },
+                  {
+                      "path":  ".github/workflows/ci.yml",
+                      "status":  "present",
+                      "sha256":  "43843ad6ea897619db09552e3b420704d716b67fe8448f75f1d7ad0c6739da41"
+                  },
+                  {
+                      "path":  ".github/workflows/macos-build.yml",
+                      "status":  "present",
+                      "sha256":  "92a56e29d573cee16de7166c0ad46df94a881d87f080ab1c6fccf1f148bf6c6e"
+                  },
+                  {
+                      "path":  ".github/workflows/windows-ci.yml",
+                      "status":  "present",
+                      "sha256":  "e7b06086805305b83117594e10fff0f02487e85f62e0b18bb2818ea3bb325a2c"
+                  }
+              ]
+}

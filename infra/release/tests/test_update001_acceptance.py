@@ -71,11 +71,14 @@ def test_native_config_injects_only_the_public_key_and_shipped_feed() -> None:
     feed_base = feed.get("base", feed.get("base_url", feed.get("baseUrl")))
 
     assert public_key
-    assert feed_base == "https://releases.invalid"
+    assert feed_base == "https://leviathan-release-feed.ocean824.workers.dev"
     assert "updater.pub" in build
     assert "feed.json" in build
     assert "--config" in build
-    assert "releases.invalid" in json.dumps(config) + build + json.dumps(feed)
+    assert (
+        "leviathan-release-feed.ocean824.workers.dev"
+        in json.dumps(config) + build + json.dumps(feed)
+    )
     assert config["plugins"]["updater"]["pubkey"] == public_key
     assert config["plugins"]["updater"]["endpoints"] == [feed_base + feed["endpoint"]]
     assert re.search(r"(?i)pubkey\s*=\s*\$publicKey", build)

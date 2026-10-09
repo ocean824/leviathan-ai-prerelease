@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://licensing-worker.invalid; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; connect-src 'self' https://leviathan-licensing-worker.ocean824.workers.dev; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {
@@ -35,7 +35,7 @@
   "plugins": {
     "updater": {
       "pubkey": "untrusted comment: minisign public key: c5064c7ad4bf454c\nRWTFBkx61L9FTBoisNZV5Fruk+DlVFDvQSnh6uIfGoxM0UGsN7s2pDjW",
-      "endpoints": ["https://releases.invalid/v1/updates/admin/{{target}}/{{arch}}/{{current_version}}"],
+      "endpoints": ["https://leviathan-release-feed.ocean824.workers.dev/v1/updates/admin/{{target}}/{{arch}}/{{current_version}}"],
       "windows": { "installMode": "passive" }
     }
   }

@@ -48,6 +48,15 @@ PY
 )"
 fi
 
+cd "$repo/apps/terminal"
+npm ci --no-audit --no-fund
+npm run build
+terminal_index="$repo/apps/terminal/dist/index.html"
+if [[ ! -f "$terminal_index" ]]; then
+  echo "Terminal build output is missing: expected $terminal_index after npm run build" >&2
+  exit 1
+fi
+
 cd "$repo"
 uv run --locked --no-dev --no-build --package leviathan-api --with 'pyinstaller==6.22.3' \
   pyinstaller --noconfirm --clean \
@@ -62,9 +71,6 @@ cp -R "$desktop/sidecar/dist/leviathan-desktop/." "$sidecar_dir/"
 mv "$sidecar_dir/leviathan-desktop" "$sidecar_dir/$sidecar_name"
 chmod 755 "$sidecar_dir/$sidecar_name"
 
-cd "$repo/apps/terminal"
-npm ci --no-audit --no-fund
-npm run build
 iconset="$desktop/src-tauri/icons/icon.iconset"
 mkdir -p "$iconset"
 sips -s format png "$desktop/src-tauri/icons/icon.ico" --out "$iconset/icon_512x512.png" >/dev/null

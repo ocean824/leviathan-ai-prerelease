@@ -204,7 +204,7 @@ def test_route_feature_table_covers_catalog_exactly() -> None:
     assert catalog_features == set(FEATURE_KEYS_V1)
     assert gate_routes == catalog_routes
     assert set(route_families) == catalog_features
-    assert route_families["charts"] == ()
+    assert route_families["charts"] == ("/md/chart/ticket",)
     assert {feature: set(paths) for feature, paths in route_families.items()} == {
         feature: {path for path, bound_feature in gate_routes.items() if bound_feature == feature}
         for feature in catalog_features

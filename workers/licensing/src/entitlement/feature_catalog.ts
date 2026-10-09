@@ -137,6 +137,7 @@ export const API_FEATURE_ACTIONS_V1: readonly ApiFeatureActionV1[] = Object.free
   { action_id: "POST /live-activation/disable", method: "POST", path: "/live-activation/disable", feature_key: "live_trading", classification: "WRITE", registration: "PLANNED" },
   { action_id: "POST /v1/signup/checkout", method: "POST", path: "/v1/signup/checkout", feature_key: "admin_console", classification: "WRITE", registration: "WORKER_ROUTE" },
   { action_id: "POST /v1/signup/webhook", method: "POST", path: "/v1/signup/webhook", feature_key: "admin_console", classification: "WRITE", registration: "WORKER_ROUTE" },
+  { action_id: "POST /md/chart/ticket", method: "POST", path: "/md/chart/ticket", feature_key: "charts", classification: "READ", registration: "MOUNTED" },
   { action_id: "GET /data-sources", method: "GET", path: "/data-sources", feature_key: "data_sources", classification: "READ", registration: "MOUNTED" },
   { action_id: "POST /risk/halt", method: "POST", path: "/risk/halt", feature_key: "live_trading", classification: "SAFETY_OFF", registration: "MOUNTED" },
   { action_id: "POST /risk/halt/lift", method: "POST", path: "/risk/halt/lift", feature_key: "admin_console", classification: "WRITE", registration: "MOUNTED" },

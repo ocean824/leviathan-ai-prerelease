@@ -1,4 +1,4 @@
-param([string]$InstallRoot = (Join-Path $env:TEMP "LeviathanAI-PKG001-$PID"))
+param([string]$InstallRoot = (Join-Path $env:TEMP "LeviathanAI-PKG001-$PID"), [switch]$Headless)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -84,6 +84,63 @@ $wrongCapabilityStatus = Assert-RejectedRequest -Uri $riskUri -Headers @{ 'X-Lev
 $foreignOriginStatus = Assert-RejectedRequest -Uri $killUri -Method POST -Headers @{ Origin = 'https://untrusted.example' }
 $missingOriginStatus = Assert-RejectedRequest -Uri $killUri -Method POST
 $foreignHostStatus = Assert-RejectedRequest -Uri $riskUri -HostOverride "localhost:$port"
+
+if ($Headless) {
+    Write-Host 'HEADLESS ACCEPTANCE: skipping GUI-only screenshot, single-instance focus, crash dialog/restart, and window-close checks.'
+    $installedSidecars = @(Get-ChildItem -LiteralPath $InstallRoot -Recurse -Filter 'leviathan-desktop.exe' -File)
+    if ($installedSidecars.Count -ne 1) { throw "Expected one installed sidecar, found $($installedSidecars.Count)" }
+    $python = Join-Path $repo 'apps\desktop\.venv\Scripts\python.exe'
+    if (-not (Test-Path $python)) { throw "Build Python environment missing: $python" }
+    $haltOutput = Join-Path $evidence 'halt-acceptance.json'
+    $haltLog = Join-Path $evidence 'halt-acceptance.log'
+    & $python (Join-Path $repo 'apps\desktop\scripts\halt-acceptance.py') `
+        --sidecar $installedSidecars[0].FullName --local-app-data $isolatedLocalAppData `
+        --output $haltOutput | Tee-Object -FilePath $haltLog
+    if ($LASTEXITCODE -ne 0) { throw "Installed sidecar halt acceptance failed: exit $LASTEXITCODE" }
+    $haltEvidence = Get-Content -LiteralPath $haltOutput -Raw | ConvertFrom-Json
+    if (@($haltEvidence.observations).Count -ne 5) { throw 'Halt acceptance ledger is incomplete' }
+
+    Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    $sidecars = @(Get-CimInstance Win32_Process -Filter "Name = 'leviathan-desktop.exe'" |
+        Where-Object { $_.ExecutablePath -like "$InstallRoot*" })
+    foreach ($sidecarProcess in $sidecars) {
+        Stop-Process -Id $sidecarProcess.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    $uninstaller = Join-Path $InstallRoot 'uninstall.exe'
+    if (-not (Test-Path $uninstaller)) { throw "Uninstaller missing: $uninstaller" }
+    $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+    if ($uninstall.ExitCode -ne 0) { throw "Silent uninstall failed: exit $($uninstall.ExitCode)" }
+    Start-Sleep -Seconds 2
+    if (Test-Path $appPath) { throw 'Program files remained after uninstall' }
+    $dataRoot = Join-Path $env:LOCALAPPDATA 'LeviathanAI'
+    if (-not (Test-Path $dataRoot)) { throw 'User data was removed during uninstall' }
+
+    $result = [ordered]@{
+        headless = $true
+        guiOnlyChecksSkipped = @('screenshot', 'single-instance window focus', 'crash restart dialog', 'graceful window close')
+        installer = $installer.FullName
+        sha256 = $hash
+        installRoot = $InstallRoot
+        installExit = $install.ExitCode
+        port = $port
+        healthStatus = $health.StatusCode
+        terminalStatus = $terminal.StatusCode
+        missingCapabilityStatus = $missingCapabilityStatus
+        wrongCapabilityStatus = $wrongCapabilityStatus
+        foreignOriginStatus = $foreignOriginStatus
+        missingOriginStatus = $missingOriginStatus
+        foreignHostStatus = $foreignHostStatus
+        haltAcceptance = $haltOutput
+        haltObservations = $haltEvidence.observations
+        uninstallExit = $uninstall.ExitCode
+        programFilesRemoved = $true
+        userDataRetained = $true
+    }
+    $result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $evidence 'acceptance-headless.json') -Encoding UTF8
+    $result | ConvertTo-Json -Depth 4
+    return
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type @'

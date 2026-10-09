@@ -497,7 +497,7 @@ export function createLicenseWorkerV1(dependencies: LicenseWorkerDependenciesV1)
       // by adminApiRoutes. The LIC-004 license route and unimplemented admin
       // webhook path stay on the core 404/license dispatch. Signup and auth are
       // exact route surfaces; unknown nested paths remain 404s.
-      const delegated = /^\/v1\/(?:(admin)(?!\/(?:license|webhook)(?:\/|$))(?:\/|$)|(signup\/(?:checkout|webhook))$|(auth\/session(?:\/totp\/(?:enroll|confirm))?)$)/.exec(url.pathname);
+      const delegated = /^\/v1\/(?:(admin)(?!\/(?:license|webhook)(?:\/|$))(?:\/|$)|(signup\/(?:checkout|webhook|success|cancel))$|(auth\/session(?:\/totp\/(?:enroll|confirm))?)$)/.exec(url.pathname);
       if (delegated?.[3]) {
         return (await authApiRoutes(request, dependencies.authApi))
           ?? errorResponse("NOT_FOUND", requestId, currentObservedAt(), 404);

@@ -1,0 +1,80 @@
+name: Windows internal build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      UV_NO_BUILD: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          architecture: x64
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/terminal/package-lock.json
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.20"
+          enable-cache: false
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+
+      - name: Cache uv, npm, and Cargo
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.npm
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: windows-build-${{ runner.os }}-${{ hashFiles('uv.lock', 'apps/terminal/package-lock.json', 'apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: windows-build-${{ runner.os }}-
+
+      - name: Build unsigned NSIS installer
+        shell: pwsh
+        run: |
+          $config = Join-Path $env:RUNNER_TEMP 'license-worker-ci.json'
+          [IO.File]::WriteAllText($config, '{"origin":"http://127.0.0.1:8787"}', [Text.UTF8Encoding]::new($false))
+          & .\apps\desktop\scripts\build.ps1 -LicenseWorkerConfig $config -CI
+
+      - name: Run headless installer acceptance
+        shell: pwsh
+        run: |
+          $installRoot = Join-Path $env:RUNNER_TEMP 'LeviathanAI-PKG001-Headless'
+          & .\apps\desktop\scripts\acceptance.ps1 -Headless -InstallRoot $installRoot
+
+      - name: Upload unsigned NSIS installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: leviathan-windows-x64-exe
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14

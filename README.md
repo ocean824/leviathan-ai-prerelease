@@ -46,11 +46,11 @@ Install Python 3.14, `uv`, Node/npm, Rust/MSVC, and the Windows SDK. Build the l
 ./apps/desktop/scripts/acceptance.ps1
 ```
 
-The worker configuration supplies a service origin; it is not a place for provider credentials. The installer and acceptance evidence are written under `apps/desktop/src-tauri/target/` and `infra/packaging/`. A release-signed Windows installer requires the authorized signing keys, injected into the local build environment; keep those keys outside the repository and never pass them as command-line arguments. Release publication remains coordinator-controlled.
+The worker configuration supplies a service origin; it is not a place for provider credentials. The installer and acceptance evidence are written under `apps/desktop/src-tauri/target/` and `infra/packaging/`. A release-signed Windows installer requires authorized signing keys supplied to a protected local release build; keep those keys outside the repository and never pass them as command-line arguments. The GitHub Windows build uses `-CI` to disable updater artifact signing and runs headless installer acceptance; it does not receive signing or provider secrets.
 
 ### macOS x86_64
 
-The macOS build script requires a native macOS host matching `TARGET_TRIPLE`; Windows cannot cross-compile this Tauri package. The supported internal target is Intel `x86_64-apple-darwin`, with a macOS 11.0 deployment target. For a local build, install Python 3.11 (`python3` on PATH), `uv`, Node 24/npm, and Rust with Xcode command-line tools. The configured hosted workflow uses GitHub's `macos-15-intel` runner and uploads the unsigned DMG as `leviathan-macos-x86_64-dmg`.
+The macOS build script requires a native macOS host matching `TARGET_TRIPLE`; Windows cannot cross-compile this Tauri package. The supported internal target is Intel `x86_64-apple-darwin`, with a macOS 11.0 deployment target. For a local build, install Python 3.11 (`python3` on PATH), `uv`, Node 24/npm, and Rust with Xcode command-line tools. The configured hosted workflow uses GitHub's `macos-15-intel` runner and uploads the unsigned DMG as `leviathan-macos-x86_64-dmg`. The Windows workflow uploads its unsigned NSIS installer as `leviathan-windows-x64-exe`. Both CI artifacts are available under [GitHub Actions](https://github.com/ocean824/leviathan-ai-prerelease/actions) for 14 days. A coordinator-triggered manual pre-release publishes the matching installers for a selected commit on the [Releases page](https://github.com/ocean824/leviathan-ai-prerelease/releases).
 
 To build locally on an Intel Mac without updater signing keys:
 
@@ -87,7 +87,7 @@ The desktop build compiles the terminal and packages it with the local API sidec
 - Windows uses the existing DPAPI-backed store; macOS uses Keychain. macOS may ask for permission to access the app's Keychain item.
 - Desktop API traffic binds to loopback and uses a per-launch capability; it is not intended to be exposed on a LAN or public interface.
 - User data is stored outside the app at `%LOCALAPPDATA%\\LeviathanAI` on Windows and `~/Library/Application Support/LeviathanAI` on macOS. Removing the app does not remove that data.
-- macOS CI is configured to create an unsigned, unnotarized DMG with updater archive signing disabled; CI has no provider secrets.
+- macOS CI creates an unsigned, unnotarized DMG; Windows CI creates an unsigned NSIS installer. Both disable updater artifact signing and have no provider keys or signing secrets. CI artifacts are temporary; matching builds can be published as a GitHub pre-release from the manual pre-release workflow.
 - Do not use this pre-release to route live orders. Direct broker execution and signed releases are pending.
 
 ## Checks

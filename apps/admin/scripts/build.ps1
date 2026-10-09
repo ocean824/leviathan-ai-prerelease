@@ -1,6 +1,6 @@
 param(
-    [Parameter(Mandatory = $true)][string]$WorkerOrigin,
-    [Parameter(Mandatory = $true)][string]$FeedOrigin
+    [string]$WorkerOrigin = 'https://leviathan-licensing-worker.ocean824.workers.dev',
+    [string]$FeedOrigin = 'https://leviathan-release-feed.ocean824.workers.dev'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,9 +9,9 @@ Set-StrictMode -Version Latest
 function Assert-HttpsOrigin([string]$Value, [string]$Name) {
     $parsed = $null
     if (-not [Uri]::TryCreate($Value, [UriKind]::Absolute, [ref]$parsed) -or
-        $parsed.Scheme -ne 'https' -or $parsed.UserInfo -or $parsed.Query -or $parsed.Fragment -or
+        (($parsed.Scheme -ne 'https') -and -not ($parsed.Scheme -eq 'http' -and $parsed.Host -in @('127.0.0.1', 'localhost', '[::1]'))) -or $parsed.UserInfo -or $parsed.Query -or $parsed.Fragment -or
         $parsed.AbsolutePath -ne '/') {
-        throw "$Name must be a configured HTTPS origin without credentials, path, query, or fragment."
+        throw "$Name must be HTTPS or loopback HTTP without credentials, path, query, or fragment."
     }
     return $parsed.GetLeftPart([UriPartial]::Authority)
 }

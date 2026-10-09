@@ -2,3 +2,5 @@
 *.png binary
 *.ico binary
 *.woff2 binary
+infra/risk/risk_governance.lock.yaml -text
+apps/desktop/src-tauri/tauri.conf.json -text

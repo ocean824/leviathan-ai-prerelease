@@ -107,6 +107,7 @@ function harness() {
     clock: { nowUtcNs: () => "1800000000000000000", nowUnixSeconds: () => NOW },
     request_id: () => `req_signup_${++requestNumber}`,
     config: {
+      stripe_mode: "test",
       stripe_price_id: "price_synthetic_monthly",
       stripe_webhook_secret: WEBHOOK_SECRET,
       success_url: "https://product.example.test/signup/success",

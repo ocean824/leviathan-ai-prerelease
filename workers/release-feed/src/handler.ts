@@ -8,6 +8,8 @@ import type { ReleaseChannel } from "./manifest.js";
 export interface R2TextObjectPort {
   readonly size?: number;
   readonly customMetadata?: Readonly<Record<string, string>>;
+  readonly body?: ReadableStream<Uint8Array> | null;
+  arrayBuffer?(): Promise<ArrayBuffer>;
   text(): Promise<string>;
 }
 
@@ -38,6 +40,7 @@ const CHANNELS = new Set<ReleaseChannel>(["desktop", "admin"]);
 const TARGET = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ARCH = /^[a-z0-9]+(?:[_-][a-z0-9]+)*$/;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
+const MAX_RELEASE_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_CACHE_TTL_SECONDS = 300;
 
 function errorResponse(status: number, code: string): Response {
@@ -119,10 +122,45 @@ function emptyUpdate(headers: Headers): Response {
   return new Response(null, { status: 204, headers });
 }
 
+function releaseAssetPath(pathname: string): { channel: ReleaseChannel; version: string; filename: string } | null {
+  const match = /^\/releases\/(desktop|admin)\/([0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?)\/([A-Za-z0-9][A-Za-z0-9_.-]{0,254})$/.exec(pathname);
+  if (!match) return null;
+  try { compareSemVer(match[2]!, match[2]!); } catch { return null; }
+  return { channel: match[1] as ReleaseChannel, version: match[2]!, filename: match[3]! };
+}
+
+async function releaseAssetResponse(request: Request, releases: R2ReadPort): Promise<Response> {
+  if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
+  let url: URL;
+  try { url = new URL(request.url); } catch { return errorResponse(400, "INVALID_REQUEST"); }
+  if (url.search || url.hash) return errorResponse(400, "INVALID_REQUEST");
+  const asset = releaseAssetPath(url.pathname);
+  if (!asset) return errorResponse(404, "NOT_FOUND");
+  let object: R2TextObjectPort | null;
+  try { object = await releases.get(`releases/${asset.channel}/${asset.version}/${asset.filename}`); }
+  catch { return errorResponse(503, "RELEASE_STORE_UNAVAILABLE"); }
+  if (!object) return errorResponse(404, "NOT_FOUND");
+  if (object.size !== undefined && (!Number.isSafeInteger(object.size) || object.size < 0 || object.size > MAX_RELEASE_ARTIFACT_BYTES)) {
+    return errorResponse(413, "ARTIFACT_TOO_LARGE");
+  }
+  const headers = new Headers({ "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Type": "application/octet-stream", "X-Content-Type-Options": "nosniff" });
+  if (object.size !== undefined) headers.set("Content-Length", String(object.size));
+  if (object.body) return new Response(object.body, { status: 200, headers });
+  if (object.arrayBuffer) {
+    try { return new Response(await object.arrayBuffer(), { status: 200, headers }); }
+    catch { return errorResponse(503, "RELEASE_STORE_UNAVAILABLE"); }
+  }
+  return errorResponse(503, "RELEASE_STORE_UNAVAILABLE");
+}
+
 export function createReleaseFeedHandler(
   deps: ReleaseFeedDependencies,
 ): (request: Request) => Promise<Response> {
   return async (request: Request): Promise<Response> => {
+    let initialUrl: URL;
+    try { initialUrl = new URL(request.url); } catch { return errorResponse(400, "INVALID_REQUEST"); }
+    if (initialUrl.pathname.startsWith("/releases/")) return releaseAssetResponse(request, deps.releases);
     const parsed = readUpdateRequest(request);
     if (parsed instanceof Response) return parsed;
 
@@ -227,6 +265,14 @@ const systemClock: ClockPort = { now: () => new Date() };
 
 const worker = {
   fetch(request: Request, env: CloudflareReleaseFeedEnv): Promise<Response> {
+    let url: URL;
+    try { url = new URL(request.url); } catch { return Promise.resolve(errorResponse(400, "INVALID_REQUEST")); }
+    if (url.pathname === "/health" && request.method === "GET") {
+      const ready = env && typeof env.RELEASES?.get === "function" && parseConfiguredTtl(env.MANIFEST_CACHE_TTL_SECONDS) !== null;
+      return Promise.resolve(new Response(JSON.stringify({ status: ready ? "ok" : "not_ready" }), {
+        status: ready ? 200 : 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+      }));
+    }
     const ttl = parseConfiguredTtl(env.MANIFEST_CACHE_TTL_SECONDS);
     if (ttl === null) return Promise.resolve(errorResponse(503, "CONFIGURATION_ERROR"));
 

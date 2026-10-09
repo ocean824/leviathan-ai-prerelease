@@ -13,7 +13,7 @@ function deps(overrides: Partial<SignupDependenciesV1> = {}) {
   const base: SignupDependenciesV1 = {
     clock: { nowUtcNs: () => "1800000000000000000", nowUnixSeconds: () => NOW_SECONDS },
     request_id: () => "req_signup_001",
-    config: { stripe_price_id: "price_test_monthly", stripe_webhook_secret: SECRET,
+    config: { stripe_mode: "test", stripe_price_id: "price_test_monthly", stripe_webhook_secret: SECRET,
       success_url: "https://product.example/success", cancel_url: "https://product.example/cancel" },
     pending_signups: { async createPending(input) {
       calls.pending.push(input);
@@ -52,7 +52,7 @@ async function signedRequest(path: string, value: unknown, secret = SECRET, time
 
 function completedSession(overrides: Record<string, unknown> = {}) {
   return {
-    id: "evt_checkout_1", type: "checkout.session.completed", created: NOW_SECONDS,
+    id: "evt_checkout_1", type: "checkout.session.completed", created: NOW_SECONDS, livemode: false,
     data: { object: { id: "cs_test_1", client_reference_id: "pending_1", customer: "cus_1",
       subscription: "sub_1", payment_status: "paid", metadata: { org_id: "org_1" }, ...overrides } },
   };
@@ -134,6 +134,32 @@ describe("SIGNUP-001 standalone routes", () => {
       subscription_id: "sub_1", customer_id: "cus_1" });
   });
 
+  it("binds signed webhook livemode to the configured Stripe key mode before ledger writes", async () => {
+    const audit = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const test = deps();
+      const liveEvent = await signedRequest("/v1/signup/webhook", { ...completedSession(), livemode: true });
+      const testResponse = await signupRoutes(liveEvent, test.deps);
+      expect(testResponse?.status).toBe(422);
+      expect(await testResponse!.json()).toMatchObject({ error: { code: "STRIPE_MODE_MISMATCH" } });
+      expect(test.calls.events).toHaveLength(0);
+
+      const liveDependencies: SignupDependenciesV1 = {
+        ...test.deps, config: { ...test.deps.config, stripe_mode: "live" },
+      };
+      const acceptedLive = await signedRequest("/v1/signup/webhook", { ...completedSession(), livemode: true });
+      expect((await signupRoutes(acceptedLive, liveDependencies))?.status).toBe(200);
+      const rejectedTest = await signedRequest("/v1/signup/webhook", completedSession());
+      const rejected = await signupRoutes(rejectedTest, liveDependencies);
+      expect(rejected?.status).toBe(422);
+      expect(await rejected!.json()).toMatchObject({ error: { code: "STRIPE_MODE_MISMATCH" } });
+      expect(test.calls.events).toHaveLength(1);
+      expect(audit).toHaveBeenCalledTimes(2);
+      expect(audit).toHaveBeenNthCalledWith(1, "STRIPE_MODE_MISMATCH");
+      expect(audit).toHaveBeenNthCalledWith(2, "STRIPE_MODE_MISMATCH");
+    } finally { audit.mockRestore(); }
+  });
+
   it("rejects bad signatures, stale signed requests and unknown events before any ledger writes", async () => {
     const { deps: dependencies, calls } = deps();
     const unsigned = new Request("https://worker.example/v1/signup/webhook", {
@@ -162,7 +188,7 @@ describe("SIGNUP-001 standalone routes", () => {
       },
     } };
     const update = (eventId: string, status: string) => ({ id: eventId,
-      type: "customer.subscription.updated", created: NOW_SECONDS,
+      type: "customer.subscription.updated", created: NOW_SECONDS, livemode: false,
       data: { object: { id: "sub_1", customer: "cus_1", status,
         current_period_start: NOW_SECONDS, current_period_end: NOW_SECONDS + 86400,
         metadata: { pending_account_id: "pending_1", org_id: "org_1" } } },

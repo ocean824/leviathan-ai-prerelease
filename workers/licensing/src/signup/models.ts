@@ -5,7 +5,7 @@ export type SignupStatusV1 =
 export type SignupErrorCodeV1 =
   | "NOT_CONFIGURED" | "INVALID_REQUEST" | "CONFIGURATION_UNAVAILABLE" | "CHECKOUT_UNAVAILABLE"
   | "INVALID_SIGNATURE" | "EVENT_NOT_ALLOWED" | "EVENT_REPLAY"
-  | "EVENT_OUT_OF_ORDER" | "ACCOUNT_MISMATCH" | "LEDGER_UNAVAILABLE";
+  | "EVENT_OUT_OF_ORDER" | "ACCOUNT_MISMATCH" | "LEDGER_UNAVAILABLE" | "STRIPE_MODE_MISMATCH";
 
 export interface SignupClockV1 {
   nowUtcNs(): string;
@@ -94,6 +94,7 @@ export interface SignupWebhookTransactionPortV1 {
 }
 
 export interface SignupConfigV1 {
+  readonly stripe_mode: "test" | "live";
   readonly stripe_price_id: string;
   readonly stripe_webhook_secret: string;
   readonly success_url: string;

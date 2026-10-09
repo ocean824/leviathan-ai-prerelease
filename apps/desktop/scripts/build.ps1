@@ -3,7 +3,8 @@ param(
     [string]$LicenseWorkerConfig,
     [switch]$SkipNpmCi,
     [switch]$SkipTerminal,
-    [switch]$SkipSidecar
+    [switch]$SkipSidecar,
+    [switch]$CI
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,7 +112,14 @@ try {
     Write-Host 'Pinned Tauri CLI: 2.12.0; pinned PyInstaller: 6.22.3'
 
     $vcvars = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat'
-    if (-not (Test-Path $vcvars)) { throw "MSVC vcvars64.bat is missing: $vcvars" }
+    if ($CI) {
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) { throw 'MSVC vswhere.exe is missing' }
+        $vsInstallation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($LASTEXITCODE -ne 0 -or -not $vsInstallation) { throw 'MSVC C++ build tools were not found by vswhere' }
+        $vcvars = Join-Path $vsInstallation 'VC\Auxiliary\Build\vcvars64.bat'
+    }
+    if (-not (Test-Path -LiteralPath $vcvars -PathType Leaf)) { throw "MSVC vcvars64.bat is missing: $vcvars" }
     $vcEnvironment = & cmd.exe /d /s /c "`"$vcvars`" >nul && set"
     if ($LASTEXITCODE -ne 0) { throw 'vcvars64.bat failed; MSVC/Windows SDK install is incomplete' }
     foreach ($line in $vcEnvironment) {
@@ -201,6 +209,10 @@ try {
     $publicKey = $keyLines -join "`n"
     $endpoint = $feedConfig.base.TrimEnd('/') + $feedConfig.endpoint
     $signingEnabled = -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)
+    if ($CI) {
+        $signingEnabled = $false
+        Write-Host 'CI build: updater artifact signing and updater bundles are disabled'
+    }
     $configOverride = @{
         bundle = @{ createUpdaterArtifacts = $signingEnabled }
         plugins = @{

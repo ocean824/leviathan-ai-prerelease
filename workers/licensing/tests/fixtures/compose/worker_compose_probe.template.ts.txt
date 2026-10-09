@@ -652,7 +652,7 @@ describe("LIC-WORKER-COMPOSE-001 independent acceptance", () => {
     const signupDriver = new MemoryPgDriver();
     signupDriver.failAudit = true;
     const signup = createNeonSignupAdapterV1(signupDriver,
-      { stripe_secret_key: "sk_test_fixture", stripe_price_id: "price_fixture" }, vi.fn());
+      { stripe_secret_key: "sk_test_fixture", stripe_mode: "test", stripe_price_id: "price_fixture" }, vi.fn());
     await expect(signup.pending_signups.createPending({ org_name: "Rollback Org", owner_email: "rollback@example.test",
       device_id: "device-rollback", idempotency_key: "idem-rollback" })).rejects.toThrow("synthetic audit insert failure");
     expect(signupDriver.organizations).toHaveLength(0);
@@ -671,7 +671,7 @@ describe("LIC-WORKER-COMPOSE-001 independent acceptance", () => {
     driver.pending.push({ pending_account_id: "pending-webhook", org_id: "org-webhook", status: "PENDING",
       owner_email: "webhook@example.test", device_id: "device-webhook" });
     const signup = createNeonSignupAdapterV1(driver,
-      { stripe_secret_key: "sk_test_fixture", stripe_price_id: "price_fixture", caps_approved: true }, vi.fn());
+      { stripe_secret_key: "sk_test_fixture", stripe_mode: "test", stripe_price_id: "price_fixture", caps_approved: true }, vi.fn());
     const event = { event_id: "evt-webhook-unique", event_type: "invoice.paid" as const,
       event_created_utc_ns: "1700000000000000000", pending_account_id: "pending-webhook", org_id: "org-webhook",
       subscription_id: "sub-webhook", customer_id: "cus-webhook", status: "ACTIVE" as const,

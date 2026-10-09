@@ -55,6 +55,20 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+describe("Cloudflare data-gateway deployment health", () => {
+  it("reports ready only when an entitlement verifier is bound", async () => {
+    const unavailable = await workerV1.fetch(new Request("https://gateway.test/health"), {});
+    expect(unavailable.status).toBe(503);
+    let verifierCalls = 0;
+    const healthy = await workerV1.fetch(new Request("https://gateway.test/health"), {
+      LICENSE_WORKER: { async fetch() { verifierCalls += 1; return Response.json({}); } },
+    });
+    expect(healthy.status).toBe(200);
+    expect(await healthy.json()).toEqual({ status: "ok" });
+    expect(verifierCalls).toBe(0);
+  });
+});
+
 describe("Data Gateway Worker", () => {
   it("publishes the closed six-provider registry as deeply frozen policy", () => {
     expect(Object.keys(DATA_GATEWAY_PROVIDERS_V1).sort()).toEqual([

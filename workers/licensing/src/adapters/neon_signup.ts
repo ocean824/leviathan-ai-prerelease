@@ -26,7 +26,8 @@ export interface NeonSignupAdapterV1 {
 /** SQL and Stripe fetch ports are injectable; tests never make provider calls. */
 export function createNeonSignupAdapterV1(
   driver: PgDriverV1,
-  config: { readonly stripe_secret_key: string; readonly stripe_price_id: string; readonly caps_approved?: boolean },
+  config: { readonly stripe_secret_key: string; readonly stripe_mode: "test" | "live";
+    readonly stripe_price_id: string; readonly caps_approved?: boolean },
   fetchPort: typeof fetch = fetch,
 ): NeonSignupAdapterV1 {
   const pending_signups: PendingSignupPortV1 = Object.freeze({
@@ -115,7 +116,9 @@ export function createNeonSignupAdapterV1(
 
   const stripe: StripePortV1 = Object.freeze({
     async createCheckoutSession(input: StripeCheckoutInputV1): Promise<StripeCheckoutResultV1> {
-      if (!config.stripe_secret_key.startsWith("sk_test_") || input.price_id !== config.stripe_price_id) {
+      const keyPrefix = config.stripe_mode === "test" ? "sk_test_" : "sk_live_";
+      const sessionPrefix = config.stripe_mode === "test" ? "cs_test_" : "cs_live_";
+      if (!config.stripe_secret_key.startsWith(keyPrefix) || input.price_id !== config.stripe_price_id) {
         throw new Error("CHECKOUT_UNAVAILABLE");
       }
       const form = new URLSearchParams({ mode: "subscription", success_url: input.success_url,
@@ -130,7 +133,7 @@ export function createNeonSignupAdapterV1(
       });
       if (!response.ok) throw new Error("CHECKOUT_UNAVAILABLE");
       const value = await response.json() as { id?: unknown; url?: unknown };
-      if (typeof value.id !== "string" || !value.id.startsWith("cs_test_") || typeof value.url !== "string"
+      if (typeof value.id !== "string" || !value.id.startsWith(sessionPrefix) || typeof value.url !== "string"
           || !value.url.startsWith("https://")) throw new Error("CHECKOUT_UNAVAILABLE");
       return Object.freeze({ session_id: value.id, checkout_url: value.url });
     },

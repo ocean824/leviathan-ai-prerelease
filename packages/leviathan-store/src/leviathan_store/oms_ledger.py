@@ -217,7 +217,11 @@ class _ExclusiveLedgerLock:
             if os.name == "nt":
                 import msvcrt
 
-                msvcrt.locking(self._file.fileno(), msvcrt.LK_NBLCK, 1)
+                getattr(msvcrt, "locking")(  # noqa: B009
+                    self._file.fileno(),
+                    getattr(msvcrt, "LK_NBLCK"),  # noqa: B009
+                    1,
+                )
             else:
                 import importlib
 
@@ -238,7 +242,11 @@ class _ExclusiveLedgerLock:
             if os.name == "nt":
                 import msvcrt
 
-                msvcrt.locking(self._file.fileno(), msvcrt.LK_UNLCK, 1)
+                getattr(msvcrt, "locking")(  # noqa: B009
+                    self._file.fileno(),
+                    getattr(msvcrt, "LK_UNLCK"),  # noqa: B009
+                    1,
+                )
             else:
                 import importlib
 

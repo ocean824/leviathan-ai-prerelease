@@ -43,9 +43,7 @@ class VaultStatus:
 
 def validate_identity(name: str, scope: str, environment: str) -> None:
     if not (
-        NAME_RE.fullmatch(name)
-        and SCOPE_RE.fullmatch(scope)
-        and ENV_RE.fullmatch(environment)
+        NAME_RE.fullmatch(name) and SCOPE_RE.fullmatch(scope) and ENV_RE.fullmatch(environment)
     ):
         raise VaultError("SECRET_SCOPE_DENIED")
 
@@ -70,25 +68,35 @@ def _unprotect(ciphertext: bytearray, entropy: bytearray) -> SecretStr:
     encrypted_blob, encrypted_buffer = _blob(ciphertext)
     entropy_blob, entropy_buffer = _blob(entropy)
     output = _DataBlob()
-    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32 = getattr(ctypes, "WinDLL")("crypt32", use_last_error=True)  # noqa: B009
+    kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
     crypt32.CryptUnprotectData.argtypes = [
-        ctypes.POINTER(_DataBlob), ctypes.c_void_p, ctypes.POINTER(_DataBlob),
-        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(_DataBlob),
+        ctypes.POINTER(_DataBlob),
+        ctypes.c_void_p,
+        ctypes.POINTER(_DataBlob),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(_DataBlob),
     ]
     crypt32.CryptUnprotectData.restype = ctypes.c_int
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
     kernel32.LocalFree.restype = ctypes.c_void_p
     try:
         ok = crypt32.CryptUnprotectData(
-            ctypes.byref(encrypted_blob), None, ctypes.byref(entropy_blob),
-            None, None, 0, ctypes.byref(output),
+            ctypes.byref(encrypted_blob),
+            None,
+            ctypes.byref(entropy_blob),
+            None,
+            None,
+            0,
+            ctypes.byref(output),
         )
         if not ok or not output.pbData or output.cbData == 0 or output.cbData % 2:
             raise VaultError("SECRET_READ_FAILED")
-        plaintext = bytearray((ctypes.c_ubyte * output.cbData).from_address(
-            ctypes.addressof(output.pbData.contents)
-        ))
+        plaintext = bytearray(
+            (ctypes.c_ubyte * output.cbData).from_address(ctypes.addressof(output.pbData.contents))
+        )
         try:
             return SecretStr(plaintext.decode("utf-16-le", errors="strict"))
         finally:
@@ -117,7 +125,7 @@ class XyraVault:
             raise VaultError("SECRET_READ_FAILED")
         cursor = path
         if os.name == "nt":
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
             kernel32.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
             kernel32.GetFileAttributesW.restype = ctypes.c_uint32
             while True:
@@ -142,7 +150,8 @@ class XyraVault:
                 )
             )
             entries = [
-                entry for entry in registry["entries"]
+                entry
+                for entry in registry["entries"]
                 if entry.get("name") == name
                 and entry.get("scope") == scope
                 and entry.get("environment") == environment
