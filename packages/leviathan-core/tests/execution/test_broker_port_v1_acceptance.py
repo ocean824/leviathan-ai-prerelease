@@ -172,7 +172,16 @@ def _snapshot() -> OrderSnapshot:
 
 
 def test_closed_broker_enums_have_only_the_contract_values() -> None:
-    assert {item.value for item in BrokerVenue} == {"IBKR_TWS", "MT5", "ALPACA"}
+    assert {item.value for item in BrokerVenue} == {
+        "IBKR",
+        "MT5_FOREXCOM",
+        "COINBASE_SPOT",
+        "KALSHI",
+        "POLYMARKET",
+        "IBKR_TWS",
+        "MT5",
+        "ALPACA",
+    }
     assert {item.value for item in BrokerEnvironment} == {"PAPER", "DEMO", "LIVE"}
     assert {item.value for item in BrokerUnknownCode} == {
         "UNKNOWN_SUBMIT",

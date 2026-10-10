@@ -23,6 +23,7 @@ from leviathan_core.execution.broker_port_v1 import (
     BrokerPortV1,
     BrokerRejected,
     BrokerRejectionCode,
+    BrokerVenue,
     CancelResultV1,
     ExecutionV1,
     SubmitResultV1,
@@ -38,6 +39,10 @@ from leviathan_core.execution.broker_reconciliation import (
     BrokerReconciliationStatus,
     FakeBrokerReconciliation,
     broker_evidence_digest,
+)
+from leviathan_core.execution.instrument_binding_v1 import (
+    ExecutionContractError,
+    VenueOrderAdmissionV1,
 )
 from leviathan_core.execution.order_models import (
     BrokerObservation,
@@ -371,6 +376,7 @@ class OrderGateway:
         client_id_key: ClientIdKey | None = None,
         operator_key: OperatorAuthorizationKey | None = None,
         dispatch_gate: DispatchGate | None = None,
+        venue_order_admission: VenueOrderAdmissionV1 | None = None,
     ) -> None:
         if _ISSUING.get() is not _ISSUER or self in _ISSUED_GATEWAYS:
             raise OMSValidationError("OMS_ACTOR_REQUIRED")
@@ -395,12 +401,18 @@ class OrderGateway:
             raise OMSValidationError("CLIENT_ID_KEY_REQUIRED")
         if dispatch_gate is None or not callable(getattr(dispatch_gate, "check", None)):
             raise OMSValidationError("DISPATCH_GATE_REQUIRED")
+        if (
+            venue_order_admission is not None
+            and type(venue_order_admission) is not VenueOrderAdmissionV1
+        ):
+            raise OMSValidationError("VENUE_ORDER_ADMISSION_REQUIRED")
         self._ledger = ledger
         self._broker = broker
         self._reconciliation = reconciliation
         self._client_id_key = client_id_key
         self._operator_key = operator_key
         self._dispatch_gate = dispatch_gate
+        self._venue_order_admission = venue_order_admission
         self._dispatch_mutex = ledger.dispatch_mutex
         self._active_dispatch = ledger.active_dispatch
         _ISSUED_GATEWAYS.add(self)
@@ -874,12 +886,29 @@ class OrderGateway:
         self._require_actor_task()
         if not isinstance(request, OrderRequest):
             raise OMSValidationError("INVALID_ORDER_REQUEST")
+        self._validate_venue_order_admission(request)
         expected = self._client_id_key.derive(
             request.account_id, request.intent_idempotency_key, request.attempt
         )
         if request.client_order_id is not None and request.client_order_id != expected:
             raise OMSValidationError("CLIENT_ID_NOT_DERIVED")
         return await self._ledger.create(replace(request, client_order_id=expected))
+
+    def _validate_venue_order_admission(self, request: OrderRequest) -> None:
+        if self._venue_order_admission is None:
+            if request.venue in {
+                BrokerVenue.IBKR.value,
+                BrokerVenue.MT5_FOREXCOM.value,
+                BrokerVenue.COINBASE_SPOT.value,
+                BrokerVenue.KALSHI.value,
+                BrokerVenue.POLYMARKET.value,
+            }:
+                raise OMSValidationError("VENUE_ORDER_ADMISSION_REQUIRED")
+            return
+        try:
+            self._venue_order_admission.validate_request(request)
+        except ExecutionContractError as exc:
+            raise OMSValidationError(exc.code) from None
 
     async def get(self, order_id: str) -> OrderSnapshot | None:
         self._require_actor_task()
@@ -1342,6 +1371,7 @@ class OrderGateway:
         order = await self._ledger.get(order_id)
         if order is None:
             raise OMSConflict("ORDER_NOT_FOUND")
+        self._validate_venue_order_admission(order.request)
         expected = self._client_id_key.derive(
             order.request.account_id,
             order.request.intent_idempotency_key,
@@ -2393,6 +2423,7 @@ def _issue_order_gateway_actor(
     operator_key: OperatorAuthorizationKey | None,
     dispatch_gate: DispatchGate,
     on_close: Callable[[], None],
+    venue_order_admission: VenueOrderAdmissionV1 | None = None,
 ) -> OrderGatewayActor:
     """Called only by the store's single-owner factory after it claims the ledger."""
     token = _ISSUING.set(_ISSUER)
@@ -2404,6 +2435,7 @@ def _issue_order_gateway_actor(
             client_id_key,
             operator_key,
             dispatch_gate,
+            venue_order_admission,
         )
         return OrderGatewayActor(gateway, ledger, on_close)
     finally:

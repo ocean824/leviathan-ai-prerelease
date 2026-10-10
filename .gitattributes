@@ -3,4 +3,7 @@
 *.ico binary
 *.woff2 binary
 infra/risk/risk_governance.lock.yaml -text
+*.lock.yaml -text
+**/risk_lock.yaml -text
 apps/desktop/src-tauri/tauri.conf.json -text
+*.icns binary

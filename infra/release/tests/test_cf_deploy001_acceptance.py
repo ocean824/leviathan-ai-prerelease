@@ -91,7 +91,9 @@ def test_runbook_uses_secure_store_stdin_and_child_token_env_only() -> None:
     assert "Get-XyraSecret -Name" in script and "Set-XyraSecret -Name" in script
     assert "Start-Process" not in script
     assert "RedirectStandardInput" in script
-    assert "StandardInput.Write($secretChars" in script
+    assert "[Text.UTF8Encoding]::new($false)" in script
+    assert "StandardInput.BaseStream.Write($secretBytes" in script
+    assert "StandardInput.WriteLine" not in script
     assert "EnvironmentVariables['CLOUDFLARE_API_TOKEN']" in script
     assert "EnvironmentVariables.Remove('CLOUDFLARE_API_TOKEN')" in script
     assert (

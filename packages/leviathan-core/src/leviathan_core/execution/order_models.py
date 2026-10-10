@@ -96,6 +96,68 @@ class _FrozenInput:
         raise TypeError("OMS inputs cannot be pickled")
 
 
+class OrderTypeV1(StrEnum):
+    """Order classes represented by the cross-venue capability contract.
+
+    This enum describes a venue's declared support; it does not expand the
+    order types accepted by the current OMS request or any broker adapter.
+    Bracket/OCO behavior is handled by ``execution.brackets``.
+    """
+
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    STOP = "STOP"
+    STOP_LIMIT = "STOP_LIMIT"
+
+
+class TimeInForceV1(StrEnum):
+    DAY = "DAY"
+    GTC = "GTC"
+    GTD = "GTD"
+    IOC = "IOC"
+    FOK = "FOK"
+
+
+class PredictionOutcomeV1(StrEnum):
+    YES = "YES"
+    NO = "NO"
+
+
+class PredictionPriceUnitV1(StrEnum):
+    CENTS = "CENTS"
+    PROBABILITY = "PROBABILITY"
+
+
+@dataclass(frozen=True, slots=True)
+class PredictionPriceV1(_FrozenInput):
+    """Explicitly unit-tagged price; cents are 0..100, probability 0..1."""
+
+    value: Decimal
+    unit: PredictionPriceUnitV1
+
+    def __post_init__(self) -> None:
+        if type(self.value) is not Decimal or type(self.unit) is not PredictionPriceUnitV1:
+            raise OMSValidationError("INVALID_PREDICTION_PRICE")
+        value = _decimal(self.value, positive=False, code="INVALID_PREDICTION_PRICE")
+        upper = Decimal(100) if self.unit is PredictionPriceUnitV1.CENTS else Decimal(1)
+        if value < 0 or value > upper:
+            raise OMSValidationError("INVALID_PREDICTION_PRICE")
+        object.__setattr__(self, "value", value)
+
+
+@dataclass(frozen=True, slots=True)
+class PredictionOrderTermsV1(_FrozenInput):
+    outcome: PredictionOutcomeV1
+    price: PredictionPriceV1
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.outcome) is not PredictionOutcomeV1
+            or type(self.price) is not PredictionPriceV1
+        ):
+            raise OMSValidationError("INVALID_PREDICTION_ORDER")
+
+
 class LedgerIntegrityKey(_FrozenInput):
     """Injected signing port; material is never serialized or represented."""
 

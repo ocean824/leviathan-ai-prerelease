@@ -14,10 +14,16 @@ import base64
 import hashlib
 import re
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, date
 from decimal import Decimal
 from typing import Any, NoReturn, SupportsIndex
 
+from leviathan_core.execution.broker_port_v1 import BrokerEnvironment, BrokerVenue
+from leviathan_core.execution.instrument_binding_v1 import (
+    AssetClassV1,
+    RollPolicyV1,
+    VenueInstrumentBindingV1,
+)
 from leviathan_core.execution.order_models import OrderRequest
 from leviathan_core.numeric import NumericError, canonical_json, parse_decimal, parse_int
 
@@ -184,7 +190,7 @@ def map_order_request(
         raise IBKRAdapterError("MISSING_CLIENT_ORDER_ID")
     if (
         request.environment != "paper"
-        or request.venue != "IBKR_TWS"
+        or request.venue not in {"IBKR", "IBKR_TWS"}
         or request.instrument_id != binding.instrument_id
         or request.native_contract_id != binding.native_contract_id
     ):
@@ -215,3 +221,51 @@ def map_order_request(
             good_till_date=good_till_date,
         ),
     )
+
+
+def to_venue_instrument_binding(
+    binding: IBKRContractBindingV1,
+    *,
+    asset_class: AssetClassV1,
+    tick_size: Decimal,
+    lot_size: Decimal,
+    session_calendar_ref: str,
+    environment: BrokerEnvironment = BrokerEnvironment.PAPER,
+    contract_multiplier: Decimal | None = None,
+    expiry: date | None = None,
+    listed_at: date | None = None,
+    last_trade: date | None = None,
+    roll_policy: RollPolicyV1 = RollPolicyV1.NONE,
+) -> VenueInstrumentBindingV1:
+    """Adapt the old exact contract mapping when caller supplies missing specs."""
+    if type(binding) is not IBKRContractBindingV1:
+        raise IBKRAdapterError("INVALID_CONTRACT_BINDING")
+    sec_type_class = {
+        "STK": AssetClassV1.EQUITY,
+        "CASH": AssetClassV1.FOREX,
+        "FUT": AssetClassV1.FUTURE,
+        "OPT": AssetClassV1.OPTION,
+    }.get(binding.sec_type)
+    if sec_type_class is None or asset_class is not sec_type_class:
+        raise IBKRAdapterError("INVALID_CONTRACT_BINDING")
+    try:
+        return VenueInstrumentBindingV1(
+            instrument_id=binding.instrument_id,
+            venue=BrokerVenue.IBKR,
+            environment=environment,
+            venue_symbol=binding.symbol,
+            native_contract_id=binding.native_contract_id,
+            asset_class=asset_class,
+            tick_size=tick_size,
+            lot_size=lot_size,
+            currency=binding.currency,
+            session_calendar_ref=session_calendar_ref,
+            revision=binding.revision,
+            contract_multiplier=contract_multiplier,
+            expiry=expiry,
+            listed_at=listed_at,
+            last_trade=last_trade,
+            roll_policy=roll_policy,
+        )
+    except ValueError:
+        raise IBKRAdapterError("INVALID_CONTRACT_BINDING") from None

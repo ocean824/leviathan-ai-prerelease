@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import NoReturn, SupportsIndex
 
+from leviathan_core.execution.broker_port_v1 import BrokerEnvironment, BrokerVenue
+from leviathan_core.execution.instrument_binding_v1 import (
+    AssetClassV1,
+    RollPolicyV1,
+    VenueInstrumentBindingV1,
+)
 from leviathan_core.numeric import NumericError, Ratio, canonical_str, exact_mul, parse_decimal
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z", re.ASCII)
@@ -113,6 +120,43 @@ class AlpacaAssetMapV1(_NoCopy):
                     raise AlpacaMappingError("ASSET_ID_MISMATCH")
                 return asset
         raise AlpacaMappingError("UNMAPPED_ASSET")
+
+
+def to_venue_instrument_binding(
+    asset: AlpacaAssetV1,
+    *,
+    revision: str,
+    currency: str,
+    session_calendar_ref: str,
+    environment: BrokerEnvironment = BrokerEnvironment.PAPER,
+    expiry: date | None = None,
+    listed_at: date | None = None,
+    last_trade: date | None = None,
+    roll_policy: RollPolicyV1 = RollPolicyV1.NONE,
+) -> VenueInstrumentBindingV1:
+    """Adapt an Alpaca asset using caller-supplied account currency/calendar."""
+    if type(asset) is not AlpacaAssetV1:
+        raise AlpacaMappingError("INVALID_ASSET_MAPPING")
+    try:
+        return VenueInstrumentBindingV1(
+            instrument_id=asset.instrument_id,
+            venue=BrokerVenue.ALPACA,
+            environment=environment,
+            venue_symbol=asset.symbol,
+            native_contract_id=asset.asset_id,
+            asset_class=AssetClassV1.EQUITY,
+            tick_size=asset.tick_size,
+            lot_size=asset.lot_size,
+            currency=currency,
+            session_calendar_ref=session_calendar_ref,
+            revision=revision,
+            expiry=expiry,
+            listed_at=listed_at,
+            last_trade=last_trade,
+            roll_policy=roll_policy,
+        )
+    except ValueError:
+        raise AlpacaMappingError("INVALID_ASSET_MAPPING") from None
 
 
 @dataclass(frozen=True, slots=True)

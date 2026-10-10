@@ -76,6 +76,11 @@ class BrokerRejected(BrokerPortError):  # noqa: N818 - ADR-0008 public name
 
 
 class BrokerVenue(StrEnum):
+    IBKR = "IBKR"
+    MT5_FOREXCOM = "MT5_FOREXCOM"
+    COINBASE_SPOT = "COINBASE_SPOT"
+    KALSHI = "KALSHI"
+    POLYMARKET = "POLYMARKET"
     IBKR_TWS = "IBKR_TWS"
     MT5 = "MT5"
     ALPACA = "ALPACA"
@@ -194,9 +199,18 @@ def _typed_payload(value: object, ancestors: set[int]) -> object:
             else:
                 declared_fields = fields(cast(Any, value))
                 # Keep the v1.3 audit helper's original omission for additive v1.4 equity.
-                if type(value) is AccountViewV1 and value.equity is None:
+                if type(value) is AccountViewV1:
+                    optional_absent = {
+                        "equity": value.equity,
+                        "venue_identity": value.venue_identity,
+                        "account_currency": value.account_currency,
+                        "buying_power": value.buying_power,
+                    }
                     declared_fields = tuple(
-                        field for field in declared_fields if field.name != "equity"
+                        field
+                        for field in declared_fields
+                        if field.name not in optional_absent
+                        or optional_absent[field.name] is not None
                     )
                 record_fields = tuple(
                     (field.name, getattr(value, field.name)) for field in declared_fields
@@ -429,7 +443,7 @@ class ExecutionV1(_IssuedValue):
 @_guard_issued_record
 @dataclass(frozen=True, slots=True, weakref_slot=True, repr=False)
 class BalanceV1(_IssuedValue):
-    """One exact balance amount in one uppercase currency code."""
+    """One exact account cash/balance amount in one uppercase currency code."""
 
     currency: str
     amount: Decimal
@@ -506,7 +520,12 @@ class EquityEvidenceV1(_IssuedValue):
 @_guard_issued_record
 @dataclass(frozen=True, slots=True, weakref_slot=True, repr=False)
 class AccountViewV1(_IssuedValue):
-    """A complete exact-account snapshot; uncertainty must raise outcome unknown."""
+    """A complete exact-account snapshot; uncertainty must raise outcome unknown.
+
+    ``balances`` carries per-currency cash/balance evidence when available;
+    the strict cross-venue ``AccountSnapshotV1`` projection requires cash,
+    equity, buying power, account currency, and observation time explicitly.
+    """
 
     account_id: str
     open_orders: tuple[BrokerObservation, ...]
@@ -519,6 +538,9 @@ class AccountViewV1(_IssuedValue):
     session_id: str | None = None
     _issuer: InitVar[object] = None
     equity: EquityEvidenceV1 | None = None
+    venue_identity: VenueIdentityV1 | None = None
+    account_currency: str | None = None
+    buying_power: BalanceV1 | None = None
 
     def __post_init__(self, _issuer: object) -> None:
         if _issuer is not _ISSUER:
@@ -588,6 +610,22 @@ class AccountViewV1(_IssuedValue):
             if type(self.equity) is not EquityEvidenceV1:
                 raise BrokerPortError("INVALID_ACCOUNT_VIEW")
             self.equity.assert_sealed()
+        if self.venue_identity is not None:
+            if (
+                type(self.venue_identity) is not VenueIdentityV1
+                or self.venue_identity.account_id != self.account_id
+            ):
+                raise BrokerPortError("INVALID_ACCOUNT_VIEW")
+            self.venue_identity.assert_sealed()
+        if self.account_currency is not None and (
+            type(self.account_currency) is not str
+            or re.fullmatch(r"[A-Z]{3}", self.account_currency) is None
+        ):
+            raise BrokerPortError("INVALID_ACCOUNT_VIEW")
+        if self.buying_power is not None:
+            if type(self.buying_power) is not BalanceV1:
+                raise BrokerPortError("INVALID_ACCOUNT_VIEW")
+            self.buying_power.assert_sealed()
         observed_at = self.broker_observed_at
         if observed_at is not None:
             if type(observed_at) is not datetime or observed_at.tzinfo is None:
@@ -624,7 +662,19 @@ class AccountViewV1(_IssuedValue):
         }
         if self.equity is not None:
             payload["equity"] = self.equity.seal_payload()
+        if self.venue_identity is not None:
+            payload["venue_identity"] = self.venue_identity.seal_payload()
+        if self.account_currency is not None:
+            payload["account_currency"] = self.account_currency
+        if self.buying_power is not None:
+            payload["buying_power"] = self.buying_power.seal_payload()
         return payload
+
+    @property
+    def evidence_digest(self) -> str:
+        """Canonical SHA-256 over the complete sealed snapshot evidence."""
+        self.assert_sealed()
+        return hashlib.sha256(canonical_json(self.seal_payload())).hexdigest()
 
 
 _ISSUED_RECORD_TYPES = (
@@ -816,6 +866,9 @@ def _issue_account_view(
     broker_observed_at: datetime | None = None,
     session_id: str | None = None,
     equity: EquityEvidenceV1 | None = None,
+    venue_identity: VenueIdentityV1 | None = None,
+    account_currency: str | None = None,
+    buying_power: BalanceV1 | None = None,
 ) -> AccountViewV1:
     if complete is not True:
         raise BrokerOutcomeUnknown(BrokerUnknownCode.UNKNOWN_ACCOUNT_VIEW)
@@ -831,6 +884,9 @@ def _issue_account_view(
         session_id,
         _issuer=_ISSUER,
         equity=equity,
+        venue_identity=venue_identity,
+        account_currency=account_currency,
+        buying_power=buying_power,
     )
 
 

@@ -89,6 +89,52 @@ class Sidecar:
         self.process.wait(timeout=10)
 
 
+def probe_status(port: int, path: str, *, headers: dict[str, str] | None = None) -> int:
+    request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers or {})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+
+
+def require_status(actual: int, expected: int, label: str) -> None:
+    if actual != expected:
+        raise RuntimeError(f"{label} returned HTTP {actual}, expected {expected}")
+
+
+def expect_api_error(
+    port: int,
+    capability: str,
+    path: str,
+    expected_status: int,
+    expected_detail: str,
+    *,
+    body: dict[str, str],
+) -> int:
+    origin = f"http://127.0.0.1:{port}"
+    payload = json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(
+        origin + path,
+        data=payload,
+        headers={
+            "X-Leviathan-Capability": capability,
+            "Origin": origin,
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            status = response.status
+            document = json.load(response)
+    except urllib.error.HTTPError as error:
+        status = error.code
+        document = json.loads(error.read().decode("utf-8"))
+    if status != expected_status or document.get("detail") != expected_detail:
+        raise RuntimeError(f"{path} returned an unexpected error response")
+    return status
+
+
 def api(port: int, capability: str, path: str, *, body: dict[str, str] | None = None) -> dict:
     origin = f"http://127.0.0.1:{port}"
     headers = {"X-Leviathan-Capability": capability}
@@ -120,12 +166,62 @@ def main() -> None:
         port = first.ready_port()
         if port is None:
             raise RuntimeError("Initial installed sidecar was not ready")
+        require_status(probe_status(port, "/api/health"), 200, "health")
+        terminal_status = probe_status(port, "/")
+        require_status(terminal_status, 200, "terminal")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
+            terminal_marker_present = b'<div id="root"></div>' in response.read()
+        if not terminal_marker_present:
+            raise RuntimeError("Terminal HTML root marker is missing")
+        missing_capability_status = probe_status(port, "/api/risk/status")
+        require_status(missing_capability_status, 403, "missing capability")
+        wrong_capability_status = probe_status(
+            port, "/api/risk/status", headers={"X-Leviathan-Capability": "0" * 64}
+        )
+        require_status(wrong_capability_status, 403, "wrong capability")
+        foreign_host_status = probe_status(
+            port, "/api/risk/status", headers={"Host": f"localhost:{port}"}
+        )
+        require_status(foreign_host_status, 421, "foreign host")
+        omega_unavailable_status = expect_api_error(
+            port,
+            capability,
+            "/api/omega/kill",
+            503,
+            "OMEGA_ADAPTER_UNAVAILABLE",
+            body={},
+        )
         before = api(port, capability, "/api/risk/status")
         if before["halted"]:
             raise RuntimeError("Expected an unhalted profile before the test")
-        engaged = api(port, capability, "/api/omega/kill", body={})
-        if not engaged["halted"] or "omega_kill_signal" not in engaged["active_halts"]:
-            raise RuntimeError("Omega halt was not committed")
+        foreign_origin_request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/omega/kill",
+            data=b"{}",
+            headers={"Origin": "https://untrusted.example", "Content-Type": "application/json",
+                "X-Leviathan-Capability": capability},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(foreign_origin_request, timeout=5) as response:
+                foreign_origin_status = response.status
+        except urllib.error.HTTPError as error:
+            foreign_origin_status = error.code
+        require_status(foreign_origin_status, 403, "foreign origin")
+        missing_origin_request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/omega/kill",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-Leviathan-Capability": capability},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(missing_origin_request, timeout=5) as response:
+                missing_origin_status = response.status
+        except urllib.error.HTTPError as error:
+            missing_origin_status = error.code
+        require_status(missing_origin_status, 403, "missing origin")
+        engaged = api(port, capability, "/api/risk/halt", body={"reason": "operator_halt"})
+        if not engaged["halted"] or "operator_halt" not in engaged["active_halts"]:
+            raise RuntimeError("Operator halt was not committed")
         observations.append(
             {"phase": "engaged", "port": port, "halted": True, "reasons": engaged["active_halts"]}
         )
@@ -139,12 +235,12 @@ def main() -> None:
             raise RuntimeError("Restart after engaged halt was not ready")
         # First HTTP route after readiness must observe the persisted halt.
         status = api(port, capability, "/api/risk/status")
-        if not status["halted"] or "omega_kill_signal" not in status["active_halts"]:
-            raise RuntimeError("Restart silently cleared the Omega halt")
+        if not status["halted"] or "operator_halt" not in status["active_halts"]:
+            raise RuntimeError("Restart silently cleared the operator halt")
         observations.append(
             {"phase": "restored", "port": port, "halted": True, "reasons": status["active_halts"]}
         )
-        lifted = api(port, capability, "/api/risk/halt/lift", body={"reason": "omega_kill_signal"})
+        lifted = api(port, capability, "/api/risk/halt/lift", body={"reason": "operator_halt"})
         if lifted["halted"] or lifted["active_halts"]:
             raise RuntimeError("Exact named lift did not commit")
         observations.append({"phase": "lifted", "port": port, "halted": False, "reasons": []})
@@ -180,6 +276,17 @@ def main() -> None:
         corrupt.stop()
     result = {
         "installedSidecar": str(args.sidecar),
+        "httpProbes": {
+            "health": 200,
+            "terminal": terminal_status,
+            "terminalRootMarker": terminal_marker_present,
+            "missingCapability": missing_capability_status,
+            "wrongCapability": wrong_capability_status,
+            "foreignOrigin": foreign_origin_status,
+            "missingOrigin": missing_origin_status,
+            "foreignHost": foreign_host_status,
+            "unconfiguredOmegaKill": omega_unavailable_status,
+        },
         "isolatedProfile": str(profile),
         "profileMarkerPresent": (profile / "data/profile.json").is_file(),
         "observations": observations,

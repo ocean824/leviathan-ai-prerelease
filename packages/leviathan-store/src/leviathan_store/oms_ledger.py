@@ -55,6 +55,7 @@ from leviathan_core.execution.broker_reconciliation import (
     BrokerReconciliationStatus,
     broker_evidence_digest,
 )
+from leviathan_core.execution.instrument_binding_v1 import VenueOrderAdmissionV1
 from leviathan_core.execution.oms import (
     ActivityCorrectionItem,
     ActivityFillItem,
@@ -5700,6 +5701,7 @@ def open_order_gateway_actor(
     ledger_key: LedgerIntegrityKey,
     operator_key: OperatorAuthorizationKey | None = None,
     dispatch_gate: DispatchGate | None = None,
+    venue_order_admission: VenueOrderAdmissionV1 | None = None,
     allow_in_memory: bool = False,
 ) -> OrderGatewayActor:
     """Claim the one ledger owner and issue its serialized fake-only actor."""
@@ -5713,6 +5715,11 @@ def open_order_gateway_actor(
         raise OMSValidationError("LEDGER_INTEGRITY_KEY_REQUIRED")
     if operator_key is not None and type(operator_key) is not OperatorAuthorizationKey:
         raise OMSValidationError("OPERATOR_AUTHORIZATION_KEY_REQUIRED")
+    if (
+        venue_order_admission is not None
+        and type(venue_order_admission) is not VenueOrderAdmissionV1
+    ):
+        raise OMSValidationError("VENUE_ORDER_ADMISSION_REQUIRED")
     if not isinstance(sessions, async_sessionmaker):
         raise OMSValidationError("OMS_FILE_LEDGER_REQUIRED")
     engine = sessions.kw.get("bind")
@@ -5755,6 +5762,7 @@ def open_order_gateway_actor(
                 operator_key,
                 gate,
                 release_owner,
+                venue_order_admission,
             )
         except Exception:
             ledger.close()

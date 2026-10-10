@@ -15,9 +15,16 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import Any, NoReturn, SupportsIndex
 
+from leviathan_core.execution.broker_port_v1 import BrokerEnvironment, BrokerVenue
+from leviathan_core.execution.instrument_binding_v1 import (
+    AssetClassV1,
+    RollPolicyV1,
+    VenueInstrumentBindingV1,
+)
 from leviathan_core.numeric import (
     NumericError,
     Ratio,
@@ -151,9 +158,7 @@ class MT5SymbolSpecV1(_FrozenRecord):
             _identity(getattr(self, name))
         _identity(self.native_symbol, symbol=True)
         for name in ("contract_size", "lot_min", "lot_max", "lot_step", "point", "tick_size"):
-            object.__setattr__(
-                self, name, _decimal(getattr(self, name), "INVALID_SYMBOL_MAPPING")
-            )
+            object.__setattr__(self, name, _decimal(getattr(self, name), "INVALID_SYMBOL_MAPPING"))
         try:
             digits = parse_int(self.digits, field="digits", min_value=0, max_value=18)
             stops = parse_int(
@@ -170,6 +175,44 @@ class MT5SymbolSpecV1(_FrozenRecord):
         object.__setattr__(self, "digits", digits)
         object.__setattr__(self, "stops_level_points", stops)
         self._freeze()
+
+
+def to_venue_instrument_binding(
+    spec: MT5SymbolSpecV1,
+    *,
+    asset_class: AssetClassV1,
+    currency: str,
+    session_calendar_ref: str,
+    environment: BrokerEnvironment = BrokerEnvironment.DEMO,
+    expiry: date | None = None,
+    listed_at: date | None = None,
+    last_trade: date | None = None,
+    roll_policy: RollPolicyV1 = RollPolicyV1.NONE,
+) -> VenueInstrumentBindingV1:
+    """Adapt an MT5 spec; currency/calendar remain explicit caller evidence."""
+    if type(spec) is not MT5SymbolSpecV1:
+        raise MT5AdapterError("INVALID_SYMBOL_MAPPING")
+    try:
+        return VenueInstrumentBindingV1(
+            instrument_id=spec.instrument_id,
+            venue=BrokerVenue.MT5_FOREXCOM,
+            environment=environment,
+            venue_symbol=spec.native_symbol,
+            native_contract_id=spec.native_contract_id,
+            asset_class=asset_class,
+            tick_size=spec.tick_size,
+            lot_size=spec.lot_step,
+            currency=currency,
+            session_calendar_ref=session_calendar_ref,
+            revision=spec.revision,
+            contract_multiplier=spec.contract_size,
+            expiry=expiry,
+            listed_at=listed_at,
+            last_trade=last_trade,
+            roll_policy=roll_policy,
+        )
+    except ValueError:
+        raise MT5AdapterError("INVALID_SYMBOL_MAPPING") from None
 
 
 @dataclass(slots=True)

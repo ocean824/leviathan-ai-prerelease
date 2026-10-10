@@ -215,6 +215,28 @@ function ConvertTo-WindowsArgument([string]$Value) {
     return $builder.ToString()
 }
 
+function ConvertTo-SanitizedWranglerStderrTail([string]$Text, [string[]]$SensitiveValues = @()) {
+    $safe = [string]$Text
+    foreach ($value in $SensitiveValues) {
+        if (-not [string]::IsNullOrEmpty($value)) {
+            $safe = [regex]::Replace($safe, [regex]::Escape($value), '[REDACTED]', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        }
+    }
+    $patterns = @(
+        '(?i)\b(?:cfat|cf_[a-z0-9]+)[_-][A-Za-z0-9_-]{8,}\b',
+        '(?i)\b(?:sk|pk)_(?:test|live)_[A-Za-z0-9_-]+\b',
+        '(?i)\bwhsec_[A-Za-z0-9_-]+\b',
+        '(?i)\bpostgres(?:ql)?://[^\s"''<>]+',
+        '(?i)\baccount[_-][A-Za-z0-9_-]{8,}\b',
+        '\b[A-Fa-f0-9]{32,}\b',
+        '\b[A-Za-z0-9+/_-]{32,}={0,2}\b'
+    )
+    foreach ($pattern in $patterns) { $safe = [regex]::Replace($safe, $pattern, '[REDACTED]') }
+    $maximumLength = 1200
+    if ($safe.Length -gt $maximumLength) { $safe = $safe.Substring($safe.Length - $maximumLength) }
+    return $safe.Trim()
+}
+
 function Start-WranglerProcess([string[]]$Arguments, [Security.SecureString]$ApiToken, [Security.SecureString]$StdinSecret) {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $NodeExePath
@@ -229,29 +251,49 @@ function Start-WranglerProcess([string[]]$Arguments, [Security.SecureString]$Api
     $apiChars = Convert-SecureStringToChars $ApiToken
     $apiText = [string]::new($apiChars)
     [Array]::Clear($apiChars, 0, $apiChars.Length)
+    $sensitiveValues = @($apiText)
     $start.EnvironmentVariables['CLOUDFLARE_API_TOKEN'] = $apiText
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
+    # Process.StandardInput takes Console.InputEncoding and, with AutoFlush, writes its preamble at start;
+    # use BOM-less UTF-8 for the child so piped secrets are stored byte-exact.
+    $previousInputEncoding = $null
+    try { $previousInputEncoding = [Console]::InputEncoding; [Console]::InputEncoding = [Text.UTF8Encoding]::new($false) } catch { $previousInputEncoding = $null }
     try {
-        if (-not $process.Start()) { throw 'WRANGLER_START_FAILED' }
+        try { if (-not $process.Start()) { throw 'WRANGLER_START_FAILED' } }
+        finally { if ($null -ne $previousInputEncoding) { try { [Console]::InputEncoding = $previousInputEncoding } catch { } } }
         [void]$start.EnvironmentVariables.Remove('CLOUDFLARE_API_TOKEN')
         $apiText = $null
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
         if ($null -ne $StdinSecret) {
             $secretChars = Convert-SecureStringToChars $StdinSecret
-            try { $process.StandardInput.Write($secretChars, 0, $secretChars.Length); $process.StandardInput.WriteLine(); $process.StandardInput.Flush() }
-            finally { [Array]::Clear($secretChars, 0, $secretChars.Length) }
+            $secretText = [string]::new($secretChars)
+            $sensitiveValues += $secretText
+            # Write raw BOM-less UTF-8 to the base stream: StandardInput's writer emits a U+FEFF preamble that wrangler stores in the secret.
+            $secretBytes = [Text.UTF8Encoding]::new($false).GetBytes($secretChars)
+            try { $process.StandardInput.BaseStream.Write($secretBytes, 0, $secretBytes.Length); $process.StandardInput.BaseStream.Flush() }
+            finally { [Array]::Clear($secretChars, 0, $secretChars.Length); [Array]::Clear($secretBytes, 0, $secretBytes.Length) }
         }
         $process.StandardInput.Close()
         $process.WaitForExit()
         $stdout = $stdoutTask.GetAwaiter().GetResult()
-        [void]$stderrTask.GetAwaiter().GetResult()
-        if ($process.ExitCode -ne 0) { throw 'WRANGLER_COMMAND_FAILED' }
+        $stderr = [string]$stderrTask.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) {
+            $safeTail = ConvertTo-SanitizedWranglerStderrTail -Text $stderr -SensitiveValues $sensitiveValues
+            if ($safeTail) { throw "WRANGLER_COMMAND_FAILED: $safeTail" }
+            throw 'WRANGLER_COMMAND_FAILED'
+        }
         return $stdout
-    } catch { throw 'WRANGLER_COMMAND_FAILED' }
+    } catch {
+        $message = $_.Exception.Message
+        if ($message -like 'WRANGLER_COMMAND_FAILED*') { throw $message }
+        throw 'WRANGLER_COMMAND_FAILED'
+    }
     finally {
         $apiText = $null
+        $secretText = $null
+        $sensitiveValues = @()
         [void]$start.EnvironmentVariables.Remove('CLOUDFLARE_API_TOKEN')
         $process.Dispose()
     }
@@ -353,7 +395,7 @@ function Assert-StripeModeCredentialPair([string]$Mode, [Security.SecureString]$
         $publishable = Get-XyraSecret -Name $PublishableName -Scope $PublishableScope -Environment $PublishableEnvironment
         $publishableChars = Convert-SecureStringToChars $publishable
         $publishableText = [string]::new($publishableChars)
-        if ($secretText -notmatch "^sk_$prefix_[A-Za-z0-9_]+$" -or $publishableText -notmatch "^pk_$prefix_[A-Za-z0-9_]+$") {
+        if ($secretText -notmatch "^sk_${prefix}_[A-Za-z0-9_]+$" -or $publishableText -notmatch "^pk_${prefix}_[A-Za-z0-9_]+$") {
             throw 'STRIPE_MODE_KEY_MISMATCH'
         }
     } catch {
@@ -374,9 +416,10 @@ function Invoke-Deploy([string]$WorkerDirectory, [string[]]$Vars, [Security.Secu
 }
 
 function Invoke-R2BucketEnsure([Security.SecureString]$ApiToken) {
-    $listing = Start-WranglerProcess @('r2', 'bucket', 'list', '--json') $ApiToken $null
-    try { $buckets = $listing | ConvertFrom-Json } catch { throw 'R2_BUCKET_LIST_INVALID' }
-    if (@($buckets | Where-Object { $_.name -eq $releaseBucket }).Count -gt 0) {
+    # wrangler 4.x has no --json for r2 bucket list; it prints "name:  <bucket>" lines.
+    $listing = [string](Start-WranglerProcess @('r2', 'bucket', 'list') $ApiToken $null)
+    $names = @([regex]::Matches($listing, '(?m)^\s*name:\s+(\S+)\s*$') | ForEach-Object { $_.Groups[1].Value })
+    if ($names -contains $releaseBucket) {
         Write-Output "R2 bucket exists: $releaseBucket"
         return
     }
@@ -436,6 +479,7 @@ if (-not (Test-Path -LiteralPath $WranglerJsPath -PathType Leaf) -or -not (Test-
 }
 
 $apiToken = $null
+$privateKeySecure = $null
 $stripeApiSecret = $null
 $stripeWebhookSecret = $null
 try {
@@ -470,7 +514,7 @@ try {
     Assert-StripeModeCredentialPair $StripeMode $stripeApiSecret $stripePublishableVaultName $stripePublishableScope $stripePublishableEnvironment
     $stripeWebhookSecret = Invoke-StripeWebhookEnsure $StripeMode $stripeApiSecret $stripeWebhookRegistry
 
-    Invoke-SecretPut $licensingWorker 'DATABASE_URL' $apiToken
+    Invoke-SecretPut $licensingWorker 'DATABASE_URL' 'LEVIATHAN_LICENSING_DATABASE_URL' $apiToken
     $totpChars = ([string]$liveRuntimeKeyValues['LEVIATHAN_LICENSING_ADMIN_TOTP_ENCRYPTION_KEY']).ToCharArray()
     $tokenChars = ([string]$liveRuntimeKeyValues['LEVIATHAN_LICENSING_INTERNAL_SERVICE_TOKEN']).ToCharArray()
     $totpSecure = ConvertTo-SecureStringFromChars $totpChars

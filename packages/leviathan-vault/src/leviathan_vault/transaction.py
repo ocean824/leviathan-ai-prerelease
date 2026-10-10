@@ -75,15 +75,14 @@ _PRIVATE_DIRECTORY_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
 $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
+if ($actual.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { exit 1 }
 $rules = @($actual.GetAccessRules($true, $true,
     [Security.Principal.SecurityIdentifier]))
 if ($actual.AreAccessRulesProtected -and
-    $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value -and
     $rules.Count -eq 1 -and $rules[0].IdentityReference.Value -eq $sid.Value -and
     $rules[0].AccessControlType -eq 'Allow' -and
     $rules[0].FileSystemRights -eq 'FullControl') { exit 0 }
 $acl = New-Object Security.AccessControl.DirectorySecurity
-$acl.SetOwner($sid)
 $acl.SetAccessRuleProtection($true, $false)
 $rule = New-Object Security.AccessControl.FileSystemAccessRule(
     $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
@@ -93,7 +92,6 @@ $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
 $rules = @($actual.GetAccessRules($true, $true,
     [Security.Principal.SecurityIdentifier]))
 if (-not $actual.AreAccessRulesProtected -or
-    $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or
     $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or
     $rules[0].AccessControlType -ne 'Allow' -or
     $rules[0].FileSystemRights -ne 'FullControl') { exit 1 }
