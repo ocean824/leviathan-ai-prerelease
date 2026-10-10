@@ -5,14 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import queue
+import re
+import signal
 import subprocess
 import threading
 import time
 import uuid
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal, cast
@@ -23,7 +27,18 @@ MAX_LINE_BYTES = 1_100_000
 MAX_RECORDS = 500
 MAX_EVIDENCE_REFS = 128
 CALL_TIMEOUT_SECONDS = 150.0
+LEARN_REPAIR_TIMEOUT_SECONDS = 750.0
+HUMAN_ACTION_TIMEOUT_SECONDS = 600.0
 MAX_PROCESS_LIFETIME_SECONDS = 900.0
+MAX_EVIDENCE_AGE: dict[str, timedelta] = {
+    "calendar.fed": timedelta(days=365),
+    "earnings.forward": timedelta(days=90),
+    "senate.efd.ptr": timedelta(days=365),
+    "cboe.daily.stats": timedelta(days=14),
+    "cnn.fear_greed": timedelta(days=7),
+}
+_POSIX_KILL = "killpg"
+_POSIX_KILL_SIGNAL = "SIGKILL"
 
 
 class PublicOperationErrorCode(StrEnum):
@@ -31,9 +46,16 @@ class PublicOperationErrorCode(StrEnum):
     OPERATION_DEGRADED = "OPERATION_DEGRADED"
     SCHEMA_INVALID = "SCHEMA_INVALID"
     TEMPLATE_UNAVAILABLE = "TEMPLATE_UNAVAILABLE"
+    PIN_REGISTRY_INVALID = "PIN_REGISTRY_INVALID"
+    FIRST_SEEN_LEDGER_INVALID = "FIRST_SEEN_LEDGER_INVALID"
     USER_ACTION_DECLINED = "USER_ACTION_DECLINED"
     USER_ACTION_REQUIRED = "USER_ACTION_REQUIRED"
     TIMEOUT = "TIMEOUT"
+    CHALLENGE_WINDOW_FAILED = "CHALLENGE_WINDOW_FAILED"
+    BROWSER_UNAVAILABLE = "BROWSER_UNAVAILABLE"
+    RATE_LIMITED = "RATE_LIMITED"
+    NOT_DUE = "NOT_DUE"
+    TEMPLATE_UNPINNED = "TEMPLATE_UNPINNED"
 
 
 class PublicOperationError(RuntimeError):
@@ -171,6 +193,7 @@ class PublicOperationRecordV1:
     source_tier: Literal[3]
     record_id: str
     fetched_at: datetime
+    first_seen_at: datetime
     as_of: datetime
     event_at: datetime | None
     published_at: datetime | None
@@ -179,6 +202,10 @@ class PublicOperationRecordV1:
     factor_tags: tuple[str, ...]
     quality: QualityStatus
     status: OperationStatus
+    template_sha256: str
+    approval_id: str
+    approval_deadline: datetime
+    freshness_deadline: datetime
     data: OperationValueV1
     values: tuple[tuple[str, str], ...] = field(init=False)
     redistribution: Literal[False] = False
@@ -189,16 +216,48 @@ class PublicOperationRecordV1:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
         for stamp in (
             self.fetched_at,
+            self.first_seen_at,
             self.as_of,
             self.event_at,
             self.published_at,
             self.available_at,
             self.knowable_at,
+            self.approval_deadline,
+            self.freshness_deadline,
         ):
             if stamp is not None and (stamp.tzinfo is None or stamp.utcoffset() is None):
                 raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
-        if self.as_of > self.fetched_at or (
-            self.knowable_at is not None and self.knowable_at > self.fetched_at
+        if (
+            self.as_of > self.fetched_at
+            or self.first_seen_at > self.fetched_at
+            or self.freshness_deadline < self.fetched_at
+            or (self.knowable_at is not None and self.knowable_at > self.fetched_at)
+            or (self.knowable_at is not None and self.as_of > self.knowable_at)
+            or (self.published_at is not None and self.published_at > self.fetched_at)
+            or (
+                self.published_at is not None
+                and self.knowable_at is not None
+                and self.published_at > self.knowable_at
+            )
+            or (
+                self.available_at is not None
+                and self.knowable_at is not None
+                and self.available_at > self.knowable_at
+            )
+            or (self.knowable_at is not None and self.knowable_at < self.first_seen_at)
+            or (self.quality == "availability_unknown" and self.knowable_at is not None)
+            or (self.quality != "availability_unknown" and self.knowable_at is None)
+            or (
+                self.quality == "source_timestamped"
+                and (
+                    self.knowable_at is None
+                    or (self.published_at is None and self.available_at is None)
+                )
+            )
+            or (
+                self.quality == "first_observed"
+                and self.knowable_at != self.first_seen_at
+            )
         ):
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
         if self.redistribution is not False:
@@ -217,6 +276,7 @@ class PublicOperationRecordV1:
                 "source_id": self.source_id,
                 "record_id": self.record_id,
                 "fetched_at": _iso(self.fetched_at),
+                "first_seen_at": _iso(self.first_seen_at),
                 "as_of": _iso(self.as_of),
                 "event_at": _iso(self.event_at),
                 "published_at": _iso(self.published_at),
@@ -224,6 +284,10 @@ class PublicOperationRecordV1:
                 "knowable_at": _iso(self.knowable_at),
                 "quality": self.quality,
                 "status": self.status.value,
+                "template_sha256": self.template_sha256,
+                "approval_id": self.approval_id,
+                "approval_deadline": _iso(self.approval_deadline),
+                "freshness_deadline": _iso(self.freshness_deadline),
                 "factor_tags": self.factor_tags,
                 "values": self.values,
                 "redistribution": False,
@@ -241,6 +305,10 @@ class PublicOperationResultV1:
     source_id: str
     source_tier: Literal[3]
     status: OperationStatus
+    template_sha256: str
+    approval_id: str
+    approval_deadline: datetime
+    freshness_deadline: datetime
     fetched_at: datetime
     as_of: datetime | None
     knowable_at: datetime | None
@@ -252,6 +320,17 @@ class PublicOperationResultV1:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
         if self.fetched_at.tzinfo is None or self.fetched_at.utcoffset() is None:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+        if (
+            not re.fullmatch(r"[a-f0-9]{64}", self.template_sha256)
+            or not self.approval_id
+            or self.freshness_deadline.tzinfo is None
+            or self.freshness_deadline.utcoffset() is None
+            or self.approval_deadline.tzinfo is None
+            or self.approval_deadline.utcoffset() is None
+        ):
+            raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+        if self.fetched_at > datetime.now(UTC) + timedelta(minutes=5):
+            raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
         for stamp in (self.as_of, self.knowable_at):
             if stamp is not None and (stamp.tzinfo is None or stamp.utcoffset() is None):
                 raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
@@ -260,6 +339,10 @@ class PublicOperationResultV1:
         if self.knowable_at is not None and self.knowable_at > self.fetched_at:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
         if len(self.records) > MAX_RECORDS:
+            raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+        known = [record.knowable_at for record in self.records if record.knowable_at is not None]
+        expected_knowable = max(known) if known else None
+        if self.knowable_at != expected_knowable:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
 
     def evidence_records(self, decision_as_of: datetime) -> tuple[PublicOperationRecordV1, ...]:
@@ -275,10 +358,14 @@ class PublicOperationResultV1:
             raise PublicOperationError(code)
         if self.as_of is not None and self.as_of > decision_as_of:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+        if decision_as_of > self.freshness_deadline:
+            raise PublicOperationError(PublicOperationErrorCode.TEMPLATE_UNAVAILABLE)
         selected: list[PublicOperationRecordV1] = []
         for record in self.records:
             if record.as_of > decision_as_of:
                 raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+            if decision_as_of - record.as_of > MAX_EVIDENCE_AGE[self.operation_id]:
+                raise PublicOperationError(PublicOperationErrorCode.OPERATION_DEGRADED)
             if record.knowable_at is not None and record.knowable_at > decision_as_of:
                 raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
             if record.knowable_at is not None and record.knowable_at <= decision_as_of:
@@ -316,7 +403,10 @@ _VALUE_MODELS: dict[str, type[StrictModel]] = {
 _SOURCE_IDS = {operation_id: f"api_anything.{operation_id}" for operation_id in _VALUE_MODELS}
 
 
-def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
+def parse_operation_result(
+    reply: SidecarReply,
+    expected_pin: Mapping[str, object] | None = None,
+) -> PublicOperationResultV1:
     if reply.error_code is not None:
         raise PublicOperationError(reply.error_code)
     operation_id = reply.operation_id
@@ -326,9 +416,40 @@ def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
         reply.source_id != _SOURCE_IDS[operation_id]
         or reply.source_tier != 3
         or reply.template_version is None
+        or reply.template_sha256 is None
+        or reply.approval_id is None
+        or reply.approval_deadline is None
+        or reply.freshness_deadline is None
     ):
         raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
+    if expected_pin is not None and (
+        expected_pin.get("version") != reply.template_version
+        or expected_pin.get("sha256") != reply.template_sha256
+        or expected_pin.get("tos_review_id") != reply.approval_id
+    ):
+        raise PublicOperationError(PublicOperationErrorCode.TEMPLATE_UNAVAILABLE)
+    if expected_pin is not None:
+        try:
+            approved_at = _parse_datetime(expected_pin.get("approved_at"))
+            if approved_at is None:
+                raise ValueError
+            if reply.approval_deadline.astimezone(UTC) != approved_at + timedelta(
+                days=90
+            ):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise PublicOperationError(PublicOperationErrorCode.TEMPLATE_UNAVAILABLE) from None
+    if reply.fetched_at.astimezone(UTC) > datetime.now(UTC) + timedelta(minutes=5):
+        raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
     fetched_at = reply.fetched_at.astimezone(UTC)
+    if (
+        reply.approval_deadline is None
+        or reply.freshness_deadline is None
+        or reply.approval_deadline.astimezone(UTC) < fetched_at
+        or reply.freshness_deadline.astimezone(UTC) < fetched_at
+        or reply.freshness_deadline.astimezone(UTC) > fetched_at + timedelta(hours=48, minutes=5)
+    ):
+        raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
     observation = (reply.as_of or fetched_at).astimezone(UTC)
     records: list[PublicOperationRecordV1] = []
     for raw in reply.records:
@@ -342,11 +463,14 @@ def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
             published_at = _parse_datetime(raw.get("published_at"))
             available_at = _parse_datetime(raw.get("available_at"))
             knowable_at = _parse_datetime(raw.get("knowable_at"))
-            record_as_of = _parse_datetime(raw.get("as_of")) or observation
+            first_seen_at = _parse_datetime(raw.get("first_seen_at"))
+            record_as_of = _parse_datetime(raw.get("as_of"))
             quality = raw.get("quality")
             if quality not in {"source_timestamped", "first_observed", "availability_unknown"}:
                 raise ValueError("invalid quality status")
             record_id = str(raw["record_id"])
+            if first_seen_at is None or record_as_of is None or record_as_of > fetched_at:
+                raise ValueError("collector timestamps required")
             data = cast(
                 OperationValueV1,
                 _VALUE_MODELS[operation_id].model_validate_json(
@@ -368,6 +492,7 @@ def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
                     source_tier=3,
                     record_id=record_id,
                     fetched_at=fetched_at,
+                    first_seen_at=first_seen_at,
                     as_of=record_as_of,
                     event_at=event_at,
                     published_at=published_at,
@@ -376,6 +501,10 @@ def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
                     factor_tags=_FACTOR_TAGS[operation_id],
                     quality=cast(QualityStatus, quality),
                     status=reply.status,
+                    template_sha256=reply.template_sha256,
+                    approval_id=reply.approval_id,
+                    approval_deadline=reply.approval_deadline.astimezone(UTC),
+                    freshness_deadline=reply.freshness_deadline.astimezone(UTC),
                     data=data,
                 )
             )
@@ -387,6 +516,10 @@ def parse_operation_result(reply: SidecarReply) -> PublicOperationResultV1:
         source_id=reply.source_id,
         source_tier=3,
         status=reply.status,
+        template_sha256=reply.template_sha256,
+        approval_id=reply.approval_id,
+        approval_deadline=reply.approval_deadline.astimezone(UTC),
+        freshness_deadline=reply.freshness_deadline.astimezone(UTC),
         fetched_at=fetched_at,
         as_of=observation,
         knowable_at=reply.knowable_at.astimezone(UTC) if reply.knowable_at else None,
@@ -416,6 +549,11 @@ class SidecarReply(StrictModel):
     template_version: str | None = None
     source_id: str | None = None
     source_tier: Literal[3] | None = None
+    template_sha256: str | None = None
+    approval_id: str | None = None
+    approval_deadline: datetime | None = None
+    freshness_deadline: datetime | None = None
+    candidate_only: bool = False
     status: OperationStatus
     fetched_at: datetime
     as_of: datetime | None
@@ -424,7 +562,9 @@ class SidecarReply(StrictModel):
     records: tuple[dict[str, object], ...] = Field(max_length=MAX_RECORDS)
     error_code: PublicOperationErrorCode | None = None
 
-    @field_validator("fetched_at", "as_of", "knowable_at")
+    @field_validator(
+        "fetched_at", "as_of", "knowable_at", "approval_deadline", "freshness_deadline"
+    )
     @classmethod
     def timestamps_must_be_aware(cls, value: datetime | None) -> datetime | None:
         if value is not None and (value.tzinfo is None or value.utcoffset() is None):
@@ -464,11 +604,18 @@ class CollectorSupervisor:
         self._node = str(node_executable)
         self._script = str(sidecar_script)
         self._data_dir = str(data_dir) if data_dir is not None else None
+        mac_version = platform.mac_ver()[0]
+        self._replay_only = bool(
+            platform.system() == "Darwin"
+            and mac_version
+            and tuple(int(part) for part in mac_version.split(".")[:2]) <= (11, 7)
+        )
         self._timeout_s = timeout_s
         self._proc: subprocess.Popen[bytes] | None = None
         self._started_at = 0.0
         self._replies: queue.Queue[bytes | BaseException] = queue.Queue(maxsize=8)
         self.events: queue.Queue[CollectorNotificationV1] = queue.Queue(maxsize=16)
+        self._challenge_waiting = threading.Event()
         self._lock = threading.Lock()
 
     def _start(self) -> subprocess.Popen[bytes]:
@@ -479,8 +626,25 @@ class CollectorSupervisor:
         if self._data_dir is None:
             raise PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE)
         try:
-            child_env = os.environ.copy()
+            child_env = {
+                key: os.environ[key]
+                for key in (
+                    "PATH",
+                    "SYSTEMROOT",
+                    "WINDIR",
+                    "TEMP",
+                    "TMP",
+                    "TMPDIR",
+                    "LOCALAPPDATA",
+                    "PROGRAMFILES",
+                    "PROGRAMFILES(X86)",
+                )
+                if key in os.environ
+            }
             child_env["LEVIATHAN_COLLECTOR_DATA"] = self._data_dir
+            child_env["LEVIATHAN_PUBLIC_USER_AGENT"] = "LeviathanPublicCollector/1.0"
+            if self._replay_only:
+                child_env["LEVIATHAN_REPLAY_ONLY"] = "1"
             self._proc = subprocess.Popen(
                 [self._node, self._script],
                 stdin=subprocess.PIPE,
@@ -489,46 +653,74 @@ class CollectorSupervisor:
                 shell=False,
                 close_fds=True,
                 env=child_env,
+                creationflags=(
+                    cast(int, getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                    if os.name == "nt"
+                    else 0
+                ),
+                start_new_session=os.name != "nt",
             )
         except OSError:
             raise PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE) from None
         self._replies = queue.Queue(maxsize=8)
         self.events = queue.Queue(maxsize=16)
+        self._challenge_waiting.clear()
         self._started_at = time.monotonic()
-        threading.Thread(target=self._read_replies, args=(self._proc,), daemon=True).start()
+        threading.Thread(
+            target=self._read_replies,
+            args=(self._proc, self._replies, self.events),
+            daemon=True,
+        ).start()
         return self._proc
 
-    def _read_replies(self, process: subprocess.Popen[bytes]) -> None:
+    def _read_replies(
+        self,
+        process: subprocess.Popen[bytes],
+        replies: queue.Queue[bytes | BaseException],
+        events: queue.Queue[CollectorNotificationV1],
+    ) -> None:
         assert process.stdout is not None
+        def enqueue_error(error: PublicOperationError) -> None:
+            with suppress(queue.Full):
+                replies.put_nowait(error)
+
         try:
             while True:
                 line = process.stdout.readline(MAX_LINE_BYTES + 1)
                 if not line:
-                    self._replies.put(
-                        PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE)
-                    )
+                    enqueue_error(PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE))
                     return
                 if len(line) > MAX_LINE_BYTES or not line.endswith(b"\n"):
-                    self._replies.put(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
+                    enqueue_error(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
                     return
                 try:
                     event = json.loads(line)
                 except (UnicodeDecodeError, json.JSONDecodeError):
-                    self._replies.put(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
+                    enqueue_error(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
                     return
                 if isinstance(event, dict) and event.get("type") == "notification":
                     try:
                         notification = CollectorNotificationV1.model_validate_json(line)
                     except ValidationError:
-                        self._replies.put(
-                            PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
-                        )
+                        enqueue_error(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
                         return
-                    self.events.put(notification)
+                    try:
+                        events.put_nowait(notification)
+                    except queue.Full:
+                        with suppress(queue.Empty):
+                            events.get_nowait()
+                        with suppress(queue.Full):
+                            events.put_nowait(notification)
+                    if notification.status == "USER_ACTION_REQUIRED":
+                        self._challenge_waiting.set()
                     continue
-                self._replies.put(line)
+                try:
+                    replies.put_nowait(line)
+                except queue.Full:
+                    enqueue_error(PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID))
+                    return
         except BaseException:
-            self._replies.put(PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE))
+            enqueue_error(PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE))
 
     def _request(
         self,
@@ -536,6 +728,7 @@ class CollectorSupervisor:
         operation_id: str | None = None,
         args: Mapping[str, object] | None = None,
         examples: tuple[Mapping[str, object], Mapping[str, object]] | None = None,
+        timeout_s: float | None = None,
     ) -> SidecarReply:
         with self._lock:
             request_id = str(uuid.uuid4())
@@ -554,7 +747,29 @@ class CollectorSupervisor:
             try:
                 process.stdin.write(encoded)
                 process.stdin.flush()
-                raw = self._replies.get(timeout=self._timeout_s)
+                timeout = timeout_s or (
+                    LEARN_REPAIR_TIMEOUT_SECONDS
+                    if method in {"learn", "repair"}
+                    else self._timeout_s
+                )
+                deadline = time.monotonic() + timeout
+                while True:
+                    if self._challenge_waiting.is_set():
+                        deadline = max(
+                            deadline,
+                            time.monotonic()
+                            + HUMAN_ACTION_TIMEOUT_SECONDS
+                            + CALL_TIMEOUT_SECONDS,
+                        )
+                        self._challenge_waiting.clear()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise queue.Empty
+                    try:
+                        raw = self._replies.get(timeout=min(0.25, remaining))
+                        break
+                    except queue.Empty:
+                        continue
             except (OSError, queue.Empty):
                 self.close(force=True)
                 raise PublicOperationError(PublicOperationErrorCode.COLLECTOR_UNAVAILABLE) from None
@@ -582,6 +797,8 @@ class CollectorSupervisor:
         return self._typed_operation("call", operation_id, args)
 
     def repair(self, operation_id: str, args: Mapping[str, object]) -> PublicOperationResultV1:
+        if self._replay_only:
+            raise PublicOperationError(PublicOperationErrorCode.BROWSER_UNAVAILABLE)
         return self._typed_operation("repair", operation_id, args)
 
     def learn(
@@ -589,7 +806,9 @@ class CollectorSupervisor:
         operation_id: str,
         examples: tuple[Mapping[str, object], Mapping[str, object]],
     ) -> str:
-        """Learn from two validated examples and return the canary-approved template version."""
+        """Learn two validated examples and return the quarantined candidate version."""
+        if self._replay_only:
+            raise PublicOperationError(PublicOperationErrorCode.BROWSER_UNAVAILABLE)
         model = _INPUT_MODELS.get(operation_id)
         if model is None or len(examples) != 2:
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID)
@@ -610,9 +829,41 @@ class CollectorSupervisor:
                 cast(Mapping[str, object], validated[1]),
             ),
         )
-        if reply.status is not OperationStatus.OK or reply.template_version is None:
+        if (
+            reply.status is not OperationStatus.OK
+            or reply.template_version is None
+            or reply.template_sha256 is None
+            or reply.candidate_only is not True
+        ):
             raise PublicOperationError(PublicOperationErrorCode.OPERATION_DEGRADED)
         return reply.template_version
+
+    def _pinned_entry(self, operation_id: str) -> Mapping[str, object]:
+        collector_root = Path(self._script).resolve().parent.parent
+        registry_path = collector_root / "templates" / "PINNED.json"
+        try:
+            registry_bytes = registry_path.read_bytes()
+            manifest_path = collector_root / "runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if hashlib.sha256(registry_bytes).hexdigest() != manifest.get("pin_registry_sha256"):
+                raise ValueError("pin registry hash mismatch")
+            registry = json.loads(registry_bytes)
+            entry = registry["operations"][operation_id]
+            if (
+                not isinstance(entry, dict)
+                or not isinstance(entry.get("version"), str)
+                or not isinstance(entry.get("sha256"), str)
+                or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
+                or not isinstance(entry.get("tos_review_id"), str)
+                or not isinstance(entry.get("approved_at"), str)
+                or not isinstance(entry.get("allowed_hosts"), list)
+                or not isinstance(entry.get("challenge_hosts"), list)
+                or not isinstance(entry.get("review_note"), str)
+            ):
+                raise ValueError
+            return cast(Mapping[str, object], entry)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            raise PublicOperationError(PublicOperationErrorCode.TEMPLATE_UNPINNED) from None
 
     def _typed_operation(
         self, method: str, operation_id: str, args: Mapping[str, object]
@@ -624,8 +875,13 @@ class CollectorSupervisor:
             validated = model.model_validate_json(json.dumps(dict(args), allow_nan=False))
         except (TypeError, ValueError, ValidationError):
             raise PublicOperationError(PublicOperationErrorCode.SCHEMA_INVALID) from None
-        reply = self._request(method, operation_id, validated.model_dump(mode="json"))
-        return parse_operation_result(reply)
+        pinned = self._pinned_entry(operation_id)
+        reply = self._request(
+            method,
+            operation_id,
+            validated.model_dump(mode="json"),
+        )
+        return parse_operation_result(reply, pinned)
 
     def next_event(self, timeout_s: float = 0.0) -> CollectorNotificationV1 | None:
         try:
@@ -633,19 +889,62 @@ class CollectorSupervisor:
         except queue.Empty:
             return None
 
+    def _clear_profile_locks(self) -> None:
+        if self._data_dir is None:
+            return
+        data_dir = Path(self._data_dir).resolve()
+        for profile_root in (data_dir / "isolated", data_dir / "learning"):
+            if not profile_root.exists():
+                continue
+            for lock_name in ("SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"):
+                for lock_path in profile_root.glob(f"**/{lock_name}"):
+                    try:
+                        lock_path.unlink()
+                    except OSError:
+                        continue
+
     def close(self, *, force: bool = False) -> None:
         process, self._proc = self._proc, None
-        if process is None or process.poll() is not None:
+        if process is None:
             return
-        if force:
-            process.kill()
+        if process.poll() is not None:
+            if force:
+                self._clear_profile_locks()
+            return
+        if force and os.name == "nt":
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                creationflags=cast(int, getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+                timeout=10,
+            )
+        elif force:
+            with suppress(ProcessLookupError):
+                getattr(os, _POSIX_KILL)(process.pid, getattr(signal, _POSIX_KILL_SIGNAL))
         else:
             process.terminate()
         try:
             process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            process.kill()
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                    creationflags=cast(int, getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+                    timeout=10,
+                )
+            else:
+                with suppress(ProcessLookupError):
+                    getattr(os, _POSIX_KILL)(process.pid, getattr(signal, _POSIX_KILL_SIGNAL))
             process.wait(timeout=2)
+        if force:
+            self._clear_profile_locks()
 
 
 __all__ = [

@@ -1,6 +1,6 @@
 [package]
 name = "leviathan-desktop-shell"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local desktop shell for Leviathan AI"
 edition = "2021"
 build = "build.rs"

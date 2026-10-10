@@ -244,8 +244,13 @@ try {
     Write-Host "Installer: $($installer.FullName)"
     Write-Host "Installer SHA-256: $installerHash"
 
-    $shellConfig = Get-Content -LiteralPath (Join-Path $tauri 'tauri.conf.json') -Raw | ConvertFrom-Json
-    $version = [string]$shellConfig.version
+    $cargoManifest = Get-Content -LiteralPath (Join-Path $tauri 'Cargo.toml') -Raw
+    $packageMatch = [regex]::Match($cargoManifest, '(?ms)^\[package\]\s*(.*?)(?=^\[|\z)')
+    $versionMatch = [regex]::Match($packageMatch.Groups[1].Value, '(?m)^version\s*=\s*"([^"\r\n]+)"\s*$')
+    if (-not $packageMatch.Success -or -not $versionMatch.Success) {
+        throw 'Desktop package version is missing from Cargo.toml'
+    }
+    $version = $versionMatch.Groups[1].Value
     $signature = $null
     if ($signingEnabled) {
         $updaterArtifact = Get-ChildItem -LiteralPath $bundle -Recurse -Filter '*.nsis.zip' -File |

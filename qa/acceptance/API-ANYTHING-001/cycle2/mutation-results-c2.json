@@ -1,0 +1,483 @@
+{
+  "total": 45,
+  "killed": 42,
+  "equivalent": [
+    "M06",
+    "M39",
+    "M45"
+  ],
+  "survived": [],
+  "invalid": [],
+  "note": "run 1 = all 43 mutants; survivors M01,M10,M11,M28,M33,M34,M43 were test gaps (fixed, re-run killed); M39/M45 re-defined per marker; M44/M45 added",
+  "results": [
+    {
+      "id": "M01",
+      "target": "rate-limiter",
+      "mutation": "limiter: send spacing removed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_call_straight_after_a_failed_call_is_held_by_the_send_spacing"
+      ]
+    },
+    {
+      "id": "M02",
+      "target": "rate-limiter",
+      "mutation": "limiter: cadence (NOT_DUE) removed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_within_cadence_but_past_min_interval_is_not_due_and_instant",
+        "test_node_unit_suite",
+        "test_writers_node_tests_and_real_stdio_e2e_pass_on_a_clean_scratch_build"
+      ]
+    },
+    {
+      "id": "M03",
+      "target": "rate-limiter",
+      "mutation": "limiter: 429 backoff ignored",
+      "status": "KILLED",
+      "killed_by": [
+        "test_http_429_with_retry_after_backs_off_and_survives_restart",
+        "test_node_unit_suite",
+        "test_writers_node_tests_and_real_stdio_e2e_pass_on_a_clean_scratch_build"
+      ]
+    },
+    {
+      "id": "M04",
+      "target": "robots",
+      "mutation": "robots.txt rules ignored",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite",
+        "test_the_shipped_sidecar_ignores_the_old_harness_switch",
+        "test_finding_aa_control_must_not_disable_robots",
+        "test_robots_disallow_blocks_the_data_request"
+      ]
+    },
+    {
+      "id": "M05",
+      "target": "robots",
+      "mutation": "host allowlist ignored",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite",
+        "test_redirect_to_another_host_is_blocked_and_never_followed",
+        "test_template_pointing_at_a_foreign_host_is_blocked_before_any_request"
+      ]
+    },
+    {
+      "id": "M06",
+      "target": "main",
+      "mutation": "redirect host/robots check removed",
+      "status": "EQUIVALENT",
+      "killed_by": [],
+      "note": "equivalent: the redirect guard is duplicated - publicFetch re-validates host/robots/https at entry on the recursive hop (verified in dist/main.js)"
+    },
+    {
+      "id": "M07",
+      "target": "main",
+      "mutation": "pinned template digest not checked",
+      "status": "KILLED",
+      "killed_by": [
+        "test_tampered_template_file_is_refused"
+      ]
+    },
+    {
+      "id": "M08",
+      "target": "main",
+      "mutation": "registry hash baked into dist not checked",
+      "status": "KILLED",
+      "killed_by": [
+        "test_registry_edited_without_rebuilding_is_refused"
+      ]
+    },
+    {
+      "id": "M09",
+      "target": "main",
+      "mutation": "repair candidates not scanned for credentials",
+      "status": "KILLED",
+      "killed_by": [
+        "test_repair_candidates_with_credentials_or_bad_rows_are_rejected"
+      ]
+    },
+    {
+      "id": "M10",
+      "target": "main",
+      "mutation": "source-claimed knowable_at trusted",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_source_claimed_knowable_at_is_ignored"
+      ]
+    },
+    {
+      "id": "M11",
+      "target": "main",
+      "mutation": "challenge detected from reason text",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_challenge_word_in_the_vendor_reason_text_alone_is_not_a_signal"
+      ]
+    },
+    {
+      "id": "M12",
+      "target": "main",
+      "mutation": "AA_CONTROL robots bypass reintroduced",
+      "status": "KILLED",
+      "killed_by": [
+        "test_no_test_mode_switch_ships_in_dist_or_the_vendor_runtime_or_python"
+      ]
+    },
+    {
+      "id": "M13",
+      "target": "challenge",
+      "mutation": "window completes without checking the page cleared",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite"
+      ]
+    },
+    {
+      "id": "M14",
+      "target": "challenge",
+      "mutation": "window wait timeout/dismiss counted as completed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite",
+        "test_writers_node_tests_and_real_stdio_e2e_pass_on_a_clean_scratch_build"
+      ]
+    },
+    {
+      "id": "M15",
+      "target": "pinned",
+      "mutation": "committed registry pins a bogus operation",
+      "status": "KILLED",
+      "killed_by": [
+        "test_committed_registry_hash_is_baked_into_the_build_and_unpinned",
+        "test_first_time_learn_challenge_notifies_and_opens_the_isolated_window",
+        "test_first_time_learn_challenge_outcomes_are_distinct_and_abstain[browser_unavailable-DEGRADED-BROWSER_UNAVAILABLE]",
+        "test_first_time_learn_challenge_outcomes_are_distinct_and_abstain[declined-USER_ACTION_DECLINED-USER_ACTION_DECLINED]",
+        "test_first_time_learn_challenge_outcomes_are_distinct_and_abstain[timeout-TIMEOUT-TIMEOUT]"
+      ]
+    },
+    {
+      "id": "M16",
+      "target": "client",
+      "mutation": "child inherits the full environment",
+      "status": "KILLED",
+      "killed_by": [
+        "test_child_receives_a_minimal_allowlisted_environment",
+        "test_package_resolves_to_this_worktree"
+      ]
+    },
+    {
+      "id": "M17",
+      "target": "client",
+      "mutation": "kill without the process tree",
+      "status": "KILLED",
+      "killed_by": [
+        "test_package_resolves_to_this_worktree",
+        "test_timeout_kills_the_whole_process_tree_including_a_browser_like_grandchild"
+      ]
+    },
+    {
+      "id": "M18",
+      "target": "client",
+      "mutation": "no separate human-wait budget",
+      "status": "KILLED",
+      "killed_by": [
+        "test_human_wait_has_its_own_budget_separate_from_the_call_timeout",
+        "test_package_resolves_to_this_worktree"
+      ]
+    },
+    {
+      "id": "M19",
+      "target": "client",
+      "mutation": "Big Sur replay-only detection removed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_client_detects_big_sur_and_never_asks_for_a_browser",
+        "test_client_passes_replay_only_to_the_child_on_big_sur_and_not_elsewhere"
+      ]
+    },
+    {
+      "id": "M20",
+      "target": "client",
+      "mutation": "client does not verify PINNED.json against the build manifest",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_registry_that_does_not_match_the_build_manifest_is_refused_before_any_launch",
+        "test_package_resolves_to_this_worktree"
+      ]
+    },
+    {
+      "id": "M21",
+      "target": "client",
+      "mutation": "client accepts future knowable_at (result level)",
+      "status": "KILLED",
+      "killed_by": [
+        "test_package_resolves_to_this_worktree"
+      ]
+    },
+    {
+      "id": "M22",
+      "target": "client",
+      "mutation": "client drops the per-record redistribution check",
+      "status": "KILLED",
+      "killed_by": [
+        "test_malformed_or_untrusted_replies_fail_closed[record",
+        "test_package_resolves_to_this_worktree"
+      ]
+    },
+    {
+      "id": "M23",
+      "target": "templates",
+      "mutation": "import does not verify the bundle digest",
+      "status": "KILLED",
+      "killed_by": [
+        "test_bundle_with_a_swapped_template_body_is_refused"
+      ]
+    },
+    {
+      "id": "M24",
+      "target": "templates",
+      "mutation": "export does not reject session material",
+      "status": "KILLED",
+      "killed_by": [
+        "test_session_material_is_rejected_on_export[Authorization]",
+        "test_session_material_is_rejected_on_export[access_token]",
+        "test_session_material_is_rejected_on_export[cookie]",
+        "test_session_material_is_rejected_on_export[password]",
+        "test_session_material_is_rejected_on_export[session_id]"
+      ]
+    },
+    {
+      "id": "M25",
+      "target": "fixture-replay",
+      "mutation": "fixture replay waits on the site pace again",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite",
+        "test_writers_node_tests_and_real_stdio_e2e_pass_on_a_clean_scratch_build",
+        "test_five_operations_are_all_prompt",
+        "test_pinned_call_is_not_delayed_by_the_pace_bucket_any_more"
+      ]
+    },
+    {
+      "id": "M26",
+      "target": "main",
+      "mutation": "pinned fixture rows judged by today's wall clock",
+      "status": "KILLED",
+      "killed_by": [
+        "test_fixture_rows_inconsistent_with_their_recorded_fetch_time_are_refused[cboe.daily.stats]",
+        "test_fixture_rows_inconsistent_with_their_recorded_fetch_time_are_refused[cnn.fear_greed]",
+        "test_fixture_rows_inconsistent_with_their_recorded_fetch_time_are_refused[earnings.forward]",
+        "test_fixture_rows_inconsistent_with_their_recorded_fetch_time_are_refused[senate.efd.ptr]",
+        "test_pin_fixture_recorded_long_ago_is_valid_when_consistent_with_its_own_fetch_time[calendar.fed]"
+      ]
+    },
+    {
+      "id": "M27",
+      "target": "main",
+      "mutation": "fixture rows no longer compared with the template's extraction",
+      "status": "KILLED",
+      "killed_by": [
+        "test_fixture_rows_must_equal_what_the_template_extracts_from_the_raw_body",
+        "test_two_fixture_entries_are_each_replayed"
+      ]
+    },
+    {
+      "id": "M28",
+      "target": "fixture-sanitize",
+      "mutation": "candidate fixture not redacted of personal values at all",
+      "status": "KILLED",
+      "killed_by": [
+        "test_personal_fields_that_the_recipe_does_not_pick_do_not_survive_in_the_stored_body[address]",
+        "test_personal_fields_that_the_recipe_does_not_pick_do_not_survive_in_the_stored_body[email]",
+        "test_personal_fields_that_the_recipe_does_not_pick_do_not_survive_in_the_stored_body[street]"
+      ]
+    },
+    {
+      "id": "M29",
+      "target": "learn-canary",
+      "mutation": "learn canary never hands off a wall",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite",
+        "test_writers_node_tests_and_real_stdio_e2e_pass_on_a_clean_scratch_build"
+      ]
+    },
+    {
+      "id": "M30",
+      "target": "vendor-dist",
+      "mutation": "vendor stops flagging walls as challenges",
+      "status": "KILLED",
+      "killed_by": [
+        "test_pinned_call_with_a_200_interstitial_hands_off_then_resumes",
+        "test_pinned_call_with_a_200_interstitial_never_yields_records_when_the_user_declines"
+      ]
+    },
+    {
+      "id": "M31",
+      "target": "main",
+      "mutation": "fixture raw bodies not scanned for credentials",
+      "status": "KILLED",
+      "killed_by": [
+        "test_defective_fixture_bundles_make_the_pin_unavailable[raw"
+      ]
+    },
+    {
+      "id": "M32",
+      "target": "semantic",
+      "mutation": "semantic window check removed (earnings)",
+      "status": "KILLED",
+      "killed_by": [
+        "test_semantically_wrong_rows_never_become_records[earnings.forward-scheduled",
+        "test_fixture_rows_inconsistent_with_their_recorded_fetch_time_are_refused[earnings.forward]"
+      ]
+    },
+    {
+      "id": "M33",
+      "target": "main",
+      "mutation": "call-time template-vs-recipe check removed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_pinned_template_with_identical_output_but_not_the_reviewed_recipe_is_refused_at_call_time[calendar.fed]",
+        "test_a_pinned_template_with_identical_output_but_not_the_reviewed_recipe_is_refused_at_call_time[cboe.daily.stats]",
+        "test_a_pinned_template_with_identical_output_but_not_the_reviewed_recipe_is_refused_at_call_time[cnn.fear_greed]",
+        "test_a_pinned_template_with_identical_output_but_not_the_reviewed_recipe_is_refused_at_call_time[earnings.forward]",
+        "test_a_pinned_template_with_identical_output_but_not_the_reviewed_recipe_is_refused_at_call_time[senate.efd.ptr]"
+      ]
+    },
+    {
+      "id": "M34",
+      "target": "main",
+      "mutation": "learn-time template-vs-recipe check removed",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[calendar.fed]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[cboe.daily.stats]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[cnn.fear_greed]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[earnings.forward]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[senate.efd.ptr]"
+      ]
+    },
+    {
+      "id": "M35",
+      "target": "main",
+      "mutation": "Fed/Senate pins no longer need a recorded live response",
+      "status": "KILLED",
+      "killed_by": [
+        "test_fed_and_senate_pin_missing_the_fixture_origin_is_refused[calendar.fed]",
+        "test_fed_and_senate_pin_missing_the_fixture_origin_is_refused[senate.efd.ptr]",
+        "test_fed_and_senate_pins_built_from_hand_made_fixtures_are_refused[hand-built"
+      ]
+    },
+    {
+      "id": "M36",
+      "target": "main",
+      "mutation": "recipe digest in the pin entry not checked",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_bad_recipe_on_one_operation_fails_every_operation_closed",
+        "test_a_tampered_recipe_is_rejected_even_when_the_registry_hash_is_regenerated[recipe"
+      ]
+    },
+    {
+      "id": "M37",
+      "target": "first-seen",
+      "mutation": "first-seen no longer write-once",
+      "status": "KILLED",
+      "killed_by": [
+        "test_first_seen_stays_put_across_later_fetches_of_the_same_record",
+        "test_changed_content_with_the_same_source_id_is_a_new_sighting",
+        "test_first_seen_is_write_once_across_four_fetches"
+      ]
+    },
+    {
+      "id": "M38",
+      "target": "challenge-signal",
+      "mutation": "403 bot-wall bodies no longer recognised",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_persistent_wall_after_the_user_finished_does_not_loop_and_yields_no_candidate",
+        "test_a_stale_challenge_signal_does_not_leak_into_the_next_request",
+        "test_a_wall_on_the_learn_canary_hands_off_then_learning_resumes[403-captcha]",
+        "test_a_wall_on_the_learn_canary_hands_off_then_learning_resumes[403-verify",
+        "test_canary_wall_outcomes_are_distinct_and_leave_nothing_behind[403-browser_unavailable-DEGRADED-BROWSER_UNAVAILABLE]"
+      ]
+    },
+    {
+      "id": "M39",
+      "target": "challenge-signal",
+      "mutation": "wall marker datadome dropped",
+      "status": "EQUIVALENT",
+      "killed_by": [],
+      "note": "equivalent: the vendor classifier (classify.js) independently flags DataDome; the layer is killed by M30"
+    },
+    {
+      "id": "M40",
+      "target": "fixture-sanitize",
+      "mutation": "recipe-picked values redacted again",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_realistic_native_body_yields_a_valid_candidate_through_the_reviewed_recipe[calendar.fed]",
+        "test_realistic_public_labels_with_two_capitalised_words_survive_sanitising",
+        "test_the_candidate_raw_body_replays_to_the_same_rows_after_sanitising[calendar.fed]",
+        "test_a_realistic_native_body_is_unchanged_by_sanitising_where_it_is_public[calendar.fed]",
+        "test_extract_of_the_sanitised_body_equals_extract_of_the_raw_body_for_multiword_public_values[calendar.fed-agency-Federal"
+      ]
+    },
+    {
+      "id": "M41",
+      "target": "fixture-sanitize",
+      "mutation": "JSON credential scan removed from the sanitiser",
+      "status": "KILLED",
+      "killed_by": [
+        "test_json_with_credentials_is_refused[authorization",
+        "test_json_with_credentials_is_refused[bearer",
+        "test_json_with_credentials_is_refused[cookie",
+        "test_json_with_credentials_is_refused[session",
+        "test_json_with_credentials_is_refused[x-token"
+      ]
+    },
+    {
+      "id": "M42",
+      "target": "fixture-sanitize",
+      "mutation": "HTML scripts/inputs/hidden fields kept",
+      "status": "KILLED",
+      "killed_by": [
+        "test_html_sanitising_removes_scripts_styles_inputs_hidden_fields_and_personal_values"
+      ]
+    },
+    {
+      "id": "M43",
+      "target": "main",
+      "mutation": "template/recipe mismatch check disabled (both sites)",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[calendar.fed]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[cboe.daily.stats]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[cnn.fear_greed]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[earnings.forward]",
+        "test_a_learned_template_that_differs_from_the_recipe_only_where_the_output_is_unchanged_is_refused[senate.efd.ptr]"
+      ]
+    },
+    {
+      "id": "M44",
+      "target": "challenge-signal",
+      "mutation": "wall marker `verify you are human` dropped",
+      "status": "KILLED",
+      "killed_by": [
+        "test_a_wall_on_the_learn_canary_hands_off_then_learning_resumes[403-verify",
+        "test_a_wall_on_the_learn_canary_hands_off_then_learning_resumes[503-verify"
+      ]
+    },
+    {
+      "id": "M45",
+      "target": "challenge-signal",
+      "mutation": "wall marker cf-chl- dropped",
+      "status": "EQUIVALENT",
+      "killed_by": [],
+      "note": "equivalent: the vendor classifier (classify.js) independently flags cf-chl-/_cf_chl_opt; the layer is killed by M30"
+    }
+  ]
+}

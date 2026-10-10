@@ -23,14 +23,14 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import leviathan_core
 from leviathan_api import __version__
-from leviathan_api.credential_connections import (
-    CredentialConnectionsRuntimeV1,
-    create_credential_connections_router,
-)
 from leviathan_api.auth.worker_assertion import (
     WorkerAssertionError,
     WorkerAssertionVerifier,
     worker_assertion_error_response,
+)
+from leviathan_api.credential_connections import (
+    CredentialConnectionsRuntimeV1,
+    create_credential_connections_router,
 )
 from leviathan_api.db import build_db
 from leviathan_api.live_activation_runtime import LazyLiveActivationGateV1

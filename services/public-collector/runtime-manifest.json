@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "api_anything_commit": "fe5cca70fe145634e49a1c9ba1f3e8250b291bea",
+  "vendor_patch_sha256": "5409be5220c92fc6c6b2d5d6acc2ca819983a61f3204403ab5a58c175f0431cc",
+  "playwright_core": "1.63.0",
+  "node_minimum": ">=22.13.0",
+  "runtime_file_count": 26,
+  "runtime_sha256": "8d5e2767007cc4c4bf2726e299b4051c653d98c3666a26ba7c676081113f2d6d",
+  "pin_registry_sha256": "97018c92db2f207bde57dac7da01bc3aae6d8aa82176b1fe3ea51312b6bf91ee"
+}

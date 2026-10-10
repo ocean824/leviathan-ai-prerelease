@@ -79,7 +79,8 @@ jobs:
           bundle="apps/desktop/src-tauri/target/$TARGET_TRIPLE/release/bundle/macos"
           app="$(find "$bundle" -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$app"
-          dmg="$(find "$bundle" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          dmg_bundle="apps/desktop/src-tauri/target/$TARGET_TRIPLE/release/bundle/dmg"
+          dmg="$(find "$dmg_bundle" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
           test -n "$dmg"
           bash apps/desktop/scripts/verify-macos-bundle.sh --self-test
           bash apps/desktop/scripts/verify-macos-bundle.sh "$app" "$TARGET_TRIPLE"
@@ -92,6 +93,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: leviathan-macos-x86_64-dmg
-          path: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.dmg
+          path: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
           retention-days: 14

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "operations": {},
+  "challenge_hosts_by_operation": {
+    "calendar.fed": [],
+    "earnings.forward": [],
+    "senate.efd.ptr": [],
+    "cboe.daily.stats": [],
+    "cnn.fear_greed": []
+  },
+  "pin_requirements": {
+    "calendar.fed": "recorded-native-body-required",
+    "earnings.forward": "reviewed-fixture-allowed",
+    "senate.efd.ptr": "recorded-native-body-required",
+    "cboe.daily.stats": "reviewed-fixture-allowed",
+    "cnn.fear_greed": "reviewed-fixture-allowed"
+  },
+  "tos_reviews": {
+    "fed-public-schedule-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "ALLOWED",
+      "redistribution": false,
+      "decision": "Public Federal Reserve calendar page approved for internal, single-user use. https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    "yahoo-finance-owner-review-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "INTERNAL_SINGLE_USER_ONLY",
+      "redistribution": false,
+      "decision": "REVIEW source approved for internal, single-user, non-redistributed use. Continue to honor robots.txt; disallowed API paths are not used. https://finance.yahoo.com/"
+    },
+    "senate-efd-public-filings-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "INTERNAL_SINGLE_USER_ONLY",
+      "redistribution": false,
+      "decision": "Public periodic transaction reports approved for internal, single-user, non-redistributed use. https://efdsearch.senate.gov/search/"
+    },
+    "cboe-market-data-owner-review-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "INTERNAL_SINGLE_USER_ONLY",
+      "redistribution": false,
+      "decision": "REVIEW source approved for internal, single-user, non-redistributed use; robots.txt paths remain enforced. https://www.cboe.com/us/en/about/market-data/"
+    },
+    "cnn-owner-review-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "INTERNAL_SINGLE_USER_ONLY",
+      "redistribution": false,
+      "decision": "REVIEW source approved for internal, single-user, non-redistributed use. Robots-disallowed /api paths are not used. https://www.cnn.com/markets/fear-and-greed"
+    },
+    "owner-policy-2026-10-09": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "INTERNAL_SINGLE_USER_ONLY",
+      "redistribution": false,
+      "decision": "REVIEW sources are approved for internal, single-user, non-redistributed use; sources with terms explicitly prohibiting automated access remain excluded."
+    },
+    "excluded-automated-access": {
+      "reviewed_at": "2026-10-09T00:00:00Z",
+      "reviewer": "Quant Trading OS Orchestration / owner ruling",
+      "verdict": "EXCLUDED",
+      "redistribution": false,
+      "decision": "Do not automate sources whose terms explicitly prohibit automated access. CME FedWatch remains excluded."
+    }
+  }
+}
