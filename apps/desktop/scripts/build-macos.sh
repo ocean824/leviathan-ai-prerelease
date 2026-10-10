@@ -49,6 +49,11 @@ if [[ ! -f "$terminal_index" ]]; then
 fi
 
 cd "$repo"
+lock="$repo/infra/risk/risk_governance.lock.yaml"
+generated="$desktop/sidecar/generated"
+mkdir -p "$generated"
+lock_hash="$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$lock")"
+printf "RISK_LOCK_SHA256 = '%s'\n" "$lock_hash" > "$generated/build_constants.py"
 uv run --locked --no-dev --no-build --package leviathan-api --with 'pyinstaller==6.22.3' \
   pyinstaller --noconfirm --clean \
   --distpath "$desktop/sidecar/dist" \

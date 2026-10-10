@@ -24,14 +24,14 @@ $ErrorActionPreference = 'Stop'
 try {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    $elevation = if ($principal.IsInRole(
-        [Security.Principal.WindowsBuiltInRole]::Administrator)) { 'admin' } else { 'not_admin' }
+    $adminSid = New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+    $elevation = if ($principal.IsInRole($adminSid)) { 'admin' } else { 'not_admin' }
     $owner = (Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT).GetOwner(
         [Security.Principal.SecurityIdentifier]).Value
     if ($owner -eq $identity.User.Value) { $category = 'current_user' }
     elseif ($owner -eq 'S-1-5-32-544') { $category = 'Administrators' }
     else { $category = 'other' }
-    "$elevation|$category"
+    Write-Output "$elevation|$category"
 } catch { 'unknown|other' }
 """
 
@@ -47,14 +47,28 @@ def main() -> int:
         backup_root.mkdir(parents=True)
         environment = {**os.environ, "XYRA_IMPORT_BACKUP_ROOT": str(backup_root)}
         helper = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", _PRIVATE_DIRECTORY_SCRIPT],
+            [
+                powershell,
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                _PRIVATE_DIRECTORY_SCRIPT,
+            ],
             env=environment,
             capture_output=True,
             timeout=30,
             check=False,
         )
         state = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", OWNER_STATE_SCRIPT],
+            [
+                powershell,
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                OWNER_STATE_SCRIPT,
+            ],
             env=environment,
             capture_output=True,
             text=True,

@@ -88,10 +88,16 @@ try {
     $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
     $owner = $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value
 } catch { exit 11 }
-# Elevated hosted Windows runners can create temp directories with the local
-# Administrators group as owner. That principal is trusted; arbitrary owners
-# remain rejected because owners have implicit WRITE_DAC.
-if ($owner -ne $sid.Value -and $owner -ne $trustedAdministrativeOwner) { exit 12 }
+try {
+    $principal = New-Object Security.Principal.WindowsPrincipal(
+        [Security.Principal.WindowsIdentity]::GetCurrent())
+    $adminSid = New-Object Security.Principal.SecurityIdentifier($trustedAdministrativeOwner)
+    $elevatedAdministrator = $principal.IsInRole($adminSid)
+} catch { exit 11 }
+# Owners have implicit WRITE_DAC. An Administrators-owned root is trusted only
+# when this process has an enabled, elevated Administrators token.
+if ($owner -ne $sid.Value -and
+    -not ($owner -eq $trustedAdministrativeOwner -and $elevatedAdministrator)) { exit 12 }
 $rules = @($actual.GetAccessRules($true, $true,
     [Security.Principal.SecurityIdentifier]))
 if ($actual.AreAccessRulesProtected -and

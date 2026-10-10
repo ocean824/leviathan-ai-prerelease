@@ -771,6 +771,26 @@ def import_plan(
             bindings=bindings,
             backup_root=None,
         )
+    # Validate and determine whether this request would write before checking
+    # for the Windows-only mutation lock. This keeps semantic errors and true
+    # no-op imports portable while leaving all DPAPI/registry mutations gated.
+    try:
+        preflight = _import_plan_locked(
+            factory_root,
+            plan,
+            scope,
+            dry_run=False,
+            replace=replace,
+            bindings=bindings,
+            backup_root=None,
+        )
+    except ImportErrorCode as error:
+        if str(error) != "IMPORT_LOCKED":
+            raise
+    else:
+        return preflight
+    if os.name != "nt":
+        raise TransactionError("IMPORT_PLATFORM_DENIED")
     with import_lock(factory_root) as backup_root:
         # A pending recovery may replace protected targets, so check before it runs.
         _preflight_replaceable(
