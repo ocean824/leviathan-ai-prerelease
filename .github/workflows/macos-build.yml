@@ -84,7 +84,7 @@ jobs:
           test -n "$dmg"
           bash apps/desktop/scripts/verify-macos-bundle.sh --self-test
           bash apps/desktop/scripts/verify-macos-bundle.sh "$app" "$TARGET_TRIPLE"
-          sidecar="$app/Contents/Resources/sidecar/leviathan-desktop-$TARGET_TRIPLE"
+          sidecar="$app/Contents/Resources/resources/sidecar/leviathan-desktop-$TARGET_TRIPLE"
           file "$sidecar"
           lipo -info "$sidecar"
           bash apps/desktop/scripts/smoke-macos-sidecar.sh "$sidecar"

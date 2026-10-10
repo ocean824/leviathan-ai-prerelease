@@ -35,6 +35,9 @@ jobs:
         run: uv run mypy
       - name: Sidecar tests
         run: uv run pytest -q apps/desktop/sidecar/tests
+      - name: PROBE-ONLY diag protect_backup_root
+        run: uv run --locked --package leviathan-vault python qa/ci-probe/diag_protect_backup_root.py
+        continue-on-error: true
       - name: Vault tests
         run: uv run pytest -q packages/leviathan-vault/tests
       - name: Release infrastructure tests

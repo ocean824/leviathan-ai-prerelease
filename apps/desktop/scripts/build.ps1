@@ -229,6 +229,17 @@ try {
         ($configOverride | ConvertTo-Json -Depth 12),
         [Text.UTF8Encoding]::new($false)
     )
+    $bundle = Join-Path $tauri 'target\release\bundle'
+    $bundleFull = [IO.Path]::GetFullPath($bundle).TrimEnd('\') + '\'
+    $nsisOutput = Join-Path $bundle 'nsis'
+    $nsisOutputFull = [IO.Path]::GetFullPath($nsisOutput)
+    if (-not $nsisOutputFull.StartsWith($bundleFull, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Unsafe NSIS output path'
+    }
+    if (Test-Path -LiteralPath $nsisOutput) {
+        Remove-Item -LiteralPath $nsisOutput -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $nsisOutput | Out-Null
     Push-Location $desktop
     try {
         Invoke-WithLicenseWorkerConfig -ConfigPath $licenseWorkerConfigPath -Action {
@@ -236,7 +247,6 @@ try {
         }
     } finally { Pop-Location }
 
-    $bundle = Join-Path $tauri 'target\release\bundle'
     $installer = Get-ChildItem -LiteralPath (Join-Path $bundle 'nsis') -Filter '*-setup.exe' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $installer) { throw "NSIS installer missing under $bundle" }
     $installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
