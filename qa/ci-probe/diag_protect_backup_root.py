@@ -12,11 +12,15 @@ from leviathan_vault.transaction import _PRIVATE_DIRECTORY_SCRIPT
 
 STAGES = {
     0: "OK",
-    11: "OWNER_READ",
+    1: "UNCAUGHT_ERROR",
+    11: "ACL_READ_THROW",
     12: "OWNER_MISMATCH",
     13: "ACL_SET",
     14: "ACL_VERIFY",
     15: "INHERITANCE",
+    16: "ACL_NULL",
+    17: "OWNER_UNTRANSLATABLE",
+    18: "IDENTITY_READ",
 }
 
 OWNER_STATE_SCRIPT = r"""
@@ -26,13 +30,39 @@ try {
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     $adminSid = New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
     $elevation = if ($principal.IsInRole($adminSid)) { 'admin' } else { 'not_admin' }
-    $owner = (Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT).GetOwner(
-        [Security.Principal.SecurityIdentifier]).Value
+} catch {
+    Write-Output 'unknown|identity_unavailable'
+    exit
+}
+try {
+    $acl = [System.IO.Directory]::GetAccessControl($env:XYRA_IMPORT_BACKUP_ROOT)
+} catch {
+    Write-Output "$elevation|unreadable"
+    exit
+}
+if ($null -eq $acl) {
+    Write-Output "$elevation|acl_null"
+    exit
+}
+try {
+    $ownerSid = $acl.GetOwner([Security.Principal.SecurityIdentifier])
+    if ($null -eq $ownerSid) {
+        Write-Output "$elevation|untranslatable"
+        exit
+    }
+    $owner = $ownerSid.Value
+} catch {
+    Write-Output "$elevation|untranslatable"
+    exit
+}
+try {
     if ($owner -eq $identity.User.Value) { $category = 'current_user' }
     elseif ($owner -eq 'S-1-5-32-544') { $category = 'Administrators' }
     else { $category = 'other' }
     Write-Output "$elevation|$category"
-} catch { 'unknown|other' }
+} catch {
+    Write-Output "$elevation|untranslatable"
+}
 """
 
 
@@ -81,7 +111,7 @@ def main() -> int:
             elevation, owner_category = "unknown", "other"
         else:
             elevation, owner_category = identity_state
-        stage = STAGES.get(helper.returncode, "OWNER_READ")
+        stage = STAGES.get(helper.returncode, "UNEXPECTED_EXIT")
         print(
             f"stage={stage} helper_exit_status={helper.returncode} "
             f"elevation={elevation} owner_category={owner_category}"

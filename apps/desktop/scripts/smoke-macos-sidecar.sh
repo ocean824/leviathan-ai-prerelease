@@ -14,7 +14,33 @@ log_file="$temporary_home/sidecar.log"
 export HOME="$temporary_home/home"
 export LEVIATHAN_DESKTOP_CAPABILITY="$(python3 -c 'print("a" * 64)')"
 export LEVIATHAN_DATA_ROOT_PREEXISTED=0
-export LEVIATHAN_DATA_ROOT_ENTRY_SHA256=
+profile="$HOME/Library/Application Support/LeviathanAI"
+[[ ! -e "$profile" ]] || { echo "Smoke-test profile must start absent" >&2; exit 1; }
+export LEVIATHAN_DATA_ROOT_ENTRY_SHA256="$(python3 - "$profile" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+profile = Path(sys.argv[1])
+digest = hashlib.sha256()
+for directory, label in ((profile, b"root/"), (profile / "data", b"data/")):
+    if not directory.is_dir():
+        continue
+    entries = []
+    for path in directory.iterdir():
+        encoded = path.name.encode("utf-16le", "surrogatepass")
+        units = tuple(
+            int.from_bytes(encoded[index:index + 2], "little")
+            for index in range(0, len(encoded), 2)
+        )
+        entries.append((units, encoded))
+    for _, encoded in sorted(entries):
+        digest.update(label)
+        digest.update(encoded)
+        digest.update(b"\x00\x00")
+print(digest.hexdigest())
+PY
+)"
 export LEVIATHAN_DESKTOP_SHUTDOWN_FILE="$shutdown_file"
 
 "$sidecar" >"$log_file" 2>&1 &

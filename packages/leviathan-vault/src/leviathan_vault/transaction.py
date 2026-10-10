@@ -82,25 +82,36 @@ def _fingerprint(path: Path) -> dict[str, int | str]:
 
 _PRIVATE_DIRECTORY_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
-$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$path = $env:XYRA_IMPORT_BACKUP_ROOT
 $trustedAdministrativeOwner = 'S-1-5-32-544'
 try {
-    $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
-    $owner = $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value
+    $actual = [System.IO.Directory]::GetAccessControl($path)
 } catch { exit 11 }
+if ($null -eq $actual) { exit 16 }
 try {
+    $ownerSid = $actual.GetOwner([Security.Principal.SecurityIdentifier])
+    if ($null -eq $ownerSid) { exit 17 }
+    $owner = $ownerSid.Value
+} catch { exit 17 }
+try {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($null -eq $identity -or $null -eq $identity.User) { exit 18 }
+    $sid = $identity.User
     $principal = New-Object Security.Principal.WindowsPrincipal(
-        [Security.Principal.WindowsIdentity]::GetCurrent())
+        $identity)
     $adminSid = New-Object Security.Principal.SecurityIdentifier($trustedAdministrativeOwner)
     $elevatedAdministrator = $principal.IsInRole($adminSid)
-} catch { exit 11 }
+} catch { exit 18 }
 # Owners have implicit WRITE_DAC. An Administrators-owned root is trusted only
 # when this process has an enabled, elevated Administrators token.
 if ($owner -ne $sid.Value -and
     -not ($owner -eq $trustedAdministrativeOwner -and $elevatedAdministrator)) { exit 12 }
-$rules = @($actual.GetAccessRules($true, $true,
-    [Security.Principal.SecurityIdentifier]))
-if ($actual.AreAccessRulesProtected -and
+try {
+    $rules = @($actual.GetAccessRules($true, $true,
+        [Security.Principal.SecurityIdentifier]))
+    $protected = $actual.AreAccessRulesProtected
+} catch { exit 14 }
+if ($protected -and
     $rules.Count -eq 1 -and $rules[0].IdentityReference.Value -eq $sid.Value -and
     $rules[0].AccessControlType -eq 'Allow' -and
     $rules[0].FileSystemRights -eq 'FullControl') { exit 0 }
@@ -112,14 +123,18 @@ try {
     $rule = New-Object Security.AccessControl.FileSystemAccessRule(
         $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
     $acl.AddAccessRule($rule)
-    Set-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT -AclObject $acl
+    [System.IO.Directory]::SetAccessControl($path, $acl)
 } catch { exit 13 }
 try {
-    $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
+    $actual = [System.IO.Directory]::GetAccessControl($path)
 } catch { exit 14 }
-$rules = @($actual.GetAccessRules($true, $true,
-    [Security.Principal.SecurityIdentifier]))
-if (-not $actual.AreAccessRulesProtected) { exit 15 }
+if ($null -eq $actual) { exit 16 }
+try {
+    $rules = @($actual.GetAccessRules($true, $true,
+        [Security.Principal.SecurityIdentifier]))
+    $protected = $actual.AreAccessRulesProtected
+} catch { exit 14 }
+if (-not $protected) { exit 15 }
 if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or
     $rules[0].AccessControlType -ne 'Allow' -or
     $rules[0].FileSystemRights -ne 'FullControl') { exit 14 }

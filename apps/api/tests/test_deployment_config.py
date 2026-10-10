@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import pickle
+import sys
 import tomllib
 from pathlib import Path
 
@@ -321,6 +322,7 @@ def test_store_paths_reject_symlink_escape(tmp_path: Path) -> None:
     _assert_code(lambda: _load(config, data), DeploymentConfigCode.STORE_PATH_INVALID)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows junction APIs require Windows")
 def test_store_paths_reject_windows_junction_escape(tmp_path: Path) -> None:
     import _winapi
 
