@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import uuid
@@ -36,18 +37,26 @@ class TransactionError(ValueError):
 
 
 def _deny_reparse(path: Path) -> None:
-    """Match the broker's FileAttributes.ReparsePoint rule on Windows 3.11+."""
+    """Reject reparse points on Windows and symlinks on other platforms."""
     cursor = path.absolute()
-    if os.name != "nt":
-        raise TransactionError("IMPORT_PLATFORM_DENIED")
-    kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
-    kernel32.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
-    kernel32.GetFileAttributesW.restype = ctypes.c_uint32
+    kernel32 = None
+    if os.name == "nt":
+        kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
+        kernel32.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
+        kernel32.GetFileAttributesW.restype = ctypes.c_uint32
     while True:
         if os.path.lexists(cursor):
-            attributes = kernel32.GetFileAttributesW(str(cursor))
-            if attributes == 0xFFFFFFFF or attributes & _REPARSE_POINT:
-                raise TransactionError("IMPORT_PATH_DENIED")
+            try:
+                if kernel32 is not None:
+                    attributes = kernel32.GetFileAttributesW(str(cursor))
+                    if attributes == 0xFFFFFFFF or attributes & _REPARSE_POINT:
+                        raise TransactionError("IMPORT_PATH_DENIED")
+                elif stat.S_ISLNK(cursor.lstat().st_mode):
+                    raise TransactionError("IMPORT_PATH_DENIED")
+            except TransactionError:
+                raise
+            except OSError:
+                raise TransactionError("IMPORT_PATH_DENIED") from None
         if cursor == cursor.parent:
             return
         cursor = cursor.parent
@@ -73,33 +82,62 @@ def _fingerprint(path: Path) -> dict[str, int | str]:
 
 _PRIVATE_DIRECTORY_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
-$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$path = $env:XYRA_IMPORT_BACKUP_ROOT
 $trustedAdministrativeOwner = 'S-1-5-32-544'
-$actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
-$owner = $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value
-# Elevated hosted Windows runners can create temp directories with the local
-# Administrators group as owner. That principal is trusted; arbitrary owners
-# remain rejected because owners have implicit WRITE_DAC.
-if ($owner -ne $sid.Value -and $owner -ne $trustedAdministrativeOwner) { exit 1 }
-$rules = @($actual.GetAccessRules($true, $true,
-    [Security.Principal.SecurityIdentifier]))
-if ($actual.AreAccessRulesProtected -and
+try {
+    $actual = [System.IO.Directory]::GetAccessControl($path)
+} catch { exit 11 }
+if ($null -eq $actual) { exit 16 }
+try {
+    $ownerSid = $actual.GetOwner([Security.Principal.SecurityIdentifier])
+    if ($null -eq $ownerSid) { exit 17 }
+    $owner = $ownerSid.Value
+} catch { exit 17 }
+try {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($null -eq $identity -or $null -eq $identity.User) { exit 18 }
+    $sid = $identity.User
+    $principal = New-Object Security.Principal.WindowsPrincipal(
+        $identity)
+    $adminSid = New-Object Security.Principal.SecurityIdentifier($trustedAdministrativeOwner)
+    $elevatedAdministrator = $principal.IsInRole($adminSid)
+} catch { exit 18 }
+# Owners have implicit WRITE_DAC. An Administrators-owned root is trusted only
+# when this process has an enabled, elevated Administrators token.
+if ($owner -ne $sid.Value -and
+    -not ($owner -eq $trustedAdministrativeOwner -and $elevatedAdministrator)) { exit 12 }
+try {
+    $rules = @($actual.GetAccessRules($true, $true,
+        [Security.Principal.SecurityIdentifier]))
+    $protected = $actual.AreAccessRulesProtected
+} catch { exit 14 }
+if ($protected -and
     $rules.Count -eq 1 -and $rules[0].IdentityReference.Value -eq $sid.Value -and
     $rules[0].AccessControlType -eq 'Allow' -and
     $rules[0].FileSystemRights -eq 'FullControl') { exit 0 }
-$acl = New-Object Security.AccessControl.DirectorySecurity
-$acl.SetAccessRuleProtection($true, $false)
-$rule = New-Object Security.AccessControl.FileSystemAccessRule(
-    $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
-$acl.AddAccessRule($rule)
-Set-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT -AclObject $acl
-$actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
-$rules = @($actual.GetAccessRules($true, $true,
-    [Security.Principal.SecurityIdentifier]))
-if (-not $actual.AreAccessRulesProtected -or
-    $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or
+try {
+    $acl = New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+} catch { exit 15 }
+try {
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+        $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+    $acl.AddAccessRule($rule)
+    [System.IO.Directory]::SetAccessControl($path, $acl)
+} catch { exit 13 }
+try {
+    $actual = [System.IO.Directory]::GetAccessControl($path)
+} catch { exit 14 }
+if ($null -eq $actual) { exit 16 }
+try {
+    $rules = @($actual.GetAccessRules($true, $true,
+        [Security.Principal.SecurityIdentifier]))
+    $protected = $actual.AreAccessRulesProtected
+} catch { exit 14 }
+if (-not $protected) { exit 15 }
+if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or
     $rules[0].AccessControlType -ne 'Allow' -or
-    $rules[0].FileSystemRights -ne 'FullControl') { exit 1 }
+    $rules[0].FileSystemRights -ne 'FullControl') { exit 14 }
 """
 
 

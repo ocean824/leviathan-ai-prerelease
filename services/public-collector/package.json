@@ -1,0 +1,21 @@
+{
+  "name": "leviathan-public-collector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:vendor": "npm --prefix vendor/api-anything run build",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build:vendor && npm run build && node --test dist/*.test.js e2e/*.test.mjs"
+  },
+  "dependencies": {
+    "api-anything": "file:vendor/api-anything",
+    "playwright-core": "1.63.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

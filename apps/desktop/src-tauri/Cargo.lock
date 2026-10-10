@@ -1976,7 +1976,7 @@ dependencies = [
 
 [[package]]
 name = "leviathan-desktop-shell"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "getrandom 0.3.4",
  "reqwest",

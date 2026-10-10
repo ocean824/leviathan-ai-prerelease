@@ -49,6 +49,11 @@ if [[ ! -f "$terminal_index" ]]; then
 fi
 
 cd "$repo"
+lock="$repo/infra/risk/risk_governance.lock.yaml"
+generated="$desktop/sidecar/generated"
+mkdir -p "$generated"
+lock_hash="$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$lock")"
+printf "RISK_LOCK_SHA256 = '%s'\n" "$lock_hash" > "$generated/build_constants.py"
 uv run --locked --no-dev --no-build --package leviathan-api --with 'pyinstaller==6.22.3' \
   pyinstaller --noconfirm --clean \
   --distpath "$desktop/sidecar/dist" \
@@ -76,12 +81,13 @@ iconutil -c icns "$iconset" -o "$desktop/src-tauri/icons/icon.icns"
 cd "$desktop/src-tauri"
 npx --yes '@tauri-apps/cli@2.12.0' build --target "$triple" "${tauri_configs[@]}"
 
-version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' "$desktop/src-tauri/tauri.conf.json")"
+version="$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["package"]["version"])' "$desktop/src-tauri/Cargo.toml")"
 bundle="$desktop/src-tauri/target/$triple/release/bundle/macos"
 if [[ "$skip_updater_signing" == "1" ]]; then
-  dmg="$(find "$bundle" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
-  [[ -n "$dmg" && -f "$dmg" ]] || { echo "macOS DMG is missing" >&2; exit 1; }
-  echo "Built unsigned, unnotarized $triple app and DMG in $bundle (updater artifacts disabled)"
+  dmg_bundle="$desktop/src-tauri/target/$triple/release/bundle/dmg"
+  dmg="$(find "$dmg_bundle" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+  [[ -n "$dmg" && -f "$dmg" ]] || { echo "macOS DMG is missing under $dmg_bundle" >&2; exit 1; }
+  echo "Built unsigned, unnotarized $triple app in $bundle and DMG in $dmg_bundle (updater artifacts disabled)"
   exit 0
 fi
 

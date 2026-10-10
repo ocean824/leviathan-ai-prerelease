@@ -240,26 +240,46 @@ def main() -> None:
         observations.append(
             {"phase": "restored", "port": port, "halted": True, "reasons": status["active_halts"]}
         )
-        lifted = api(port, capability, "/api/risk/halt/lift", body={"reason": "operator_halt"})
-        if lifted["halted"] or lifted["active_halts"]:
-            raise RuntimeError("Exact named lift did not commit")
-        observations.append({"phase": "lifted", "port": port, "halted": False, "reasons": []})
+        origin = f"http://127.0.0.1:{port}"
+        request = urllib.request.Request(
+            origin + "/api/risk/halt/lift",
+            data=json.dumps({"reason": "operator_halt"}).encode("utf-8"),
+            headers={
+                "X-Leviathan-Capability": capability,
+                "Origin": origin,
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                lift_status = response.status
+        except urllib.error.HTTPError as error:
+            lift_status = error.code
+        require_status(lift_status, 401, "halt lift without a signed-in operator")
+        observations.append(
+            {"phase": "unauthenticated_lift_denied", "port": port, "status": lift_status}
+        )
     finally:
         restarted.stop()
 
-    after_lift = Sidecar(args.sidecar, args.local_app_data, capability)
+    after_denied_lift = Sidecar(args.sidecar, args.local_app_data, capability)
     try:
-        port = after_lift.ready_port()
+        port = after_denied_lift.ready_port()
         if port is None:
-            raise RuntimeError("Restart after lift was not ready")
+            raise RuntimeError("Restart after denied lift was not ready")
         status = api(port, capability, "/api/risk/status")
-        if status["halted"] or status["active_halts"]:
-            raise RuntimeError("Exact lift did not persist after restart")
+        if not status["halted"] or "operator_halt" not in status["active_halts"]:
+            raise RuntimeError("Unauthenticated lift changed the durable halt")
         observations.append(
-            {"phase": "lift_persisted", "port": port, "halted": False, "reasons": []}
+            {
+                "phase": "denied_lift_preserved_halt",
+                "port": port,
+                "halted": True,
+                "reasons": status["active_halts"],
+            }
         )
     finally:
-        after_lift.stop()
+        after_denied_lift.stop()
 
     if not store.is_file():
         raise RuntimeError("Durable halt store is missing after lifecycle trial")

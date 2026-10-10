@@ -107,6 +107,14 @@ def test_dry_run_idempotency_backup_and_semantic_preservation(
     assert json.loads(bindings.read_text(encoding="utf-8")) == original_bindings
     assert not (tmp_path / ".local").exists()
     assert not calls
+    if os.name != "nt":
+        with pytest.raises(transaction.TransactionError, match=r"^IMPORT_PLATFORM_DENIED$"):
+            import_keys.import_plan(tmp_path, plan, "leviathan-ai", bindings=bindings)
+        assert json.loads(registry.read_text(encoding="utf-8")) == original
+        assert json.loads(bindings.read_text(encoding="utf-8")) == original_bindings
+        assert not (tmp_path / ".local").exists()
+        assert not calls
+        return
     result = import_keys.import_plan(tmp_path, plan, "leviathan-ai", bindings=bindings)
     assert result.imported == 6 and len(calls) == 6
     saved = json.loads(registry.read_text(encoding="utf-8"))
@@ -284,10 +292,15 @@ def test_required_binding_matches_touched_provider_only(
     assert dry.imported == 0 and dry.would_import == 1
     assert json.loads(bindings.read_text(encoding="utf-8")) == document
     monkeypatch.setattr(import_keys, "_broker_write", lambda *args: None)
-    import_keys.import_plan(tmp_path, polygon, "leviathan-ai", bindings=bindings)
-    saved = json.loads(bindings.read_text(encoding="utf-8"))
-    assert saved["bindings"][1]["state"] == "locally_stored"
-    assert saved["bindings"][2:] == document["bindings"][2:]
+    if os.name == "nt":
+        import_keys.import_plan(tmp_path, polygon, "leviathan-ai", bindings=bindings)
+        saved = json.loads(bindings.read_text(encoding="utf-8"))
+        assert saved["bindings"][1]["state"] == "locally_stored"
+        assert saved["bindings"][2:] == document["bindings"][2:]
+    else:
+        with pytest.raises(transaction.TransactionError, match=r"^IMPORT_PLATFORM_DENIED$"):
+            import_keys.import_plan(tmp_path, polygon, "leviathan-ai", bindings=bindings)
+        assert json.loads(bindings.read_text(encoding="utf-8")) == document
     wrong_field = import_keys.ImportPlan((
         import_keys.ParsedCredential("MASSIVE", "MASSIVE_SECRET", "development",
                                      "P9vT2xL6mQ8rJ4kY"),
@@ -432,6 +445,13 @@ def test_cli_alias_persistence_and_redacted_output(
     monkeypatch.setattr(import_keys, "_broker_write", lambda *args: None)
     args = ["--source", str(source), "--scope", "leviathan-ai",
             "--factory-root", str(tmp_path), "--bindings", str(bindings)]
+    if os.name != "nt":
+        assert import_keys.main(args) == 2
+        output = capsys.readouterr()
+        assert output.err.strip() == "IMPORT_PLATFORM_DENIED"
+        assert json.loads(bindings.read_text(encoding="utf-8"))["aliases"] == []
+        assert not (tmp_path / ".local").exists()
+        return
     assert import_keys.main(args) == 0
     first = capsys.readouterr()
     _assert_redacted(first.out + first.err)
@@ -443,6 +463,7 @@ def test_cli_alias_persistence_and_redacted_output(
     assert len(json.loads(bindings.read_text(encoding="utf-8"))["aliases"]) == 1
 
 
+@pytest.mark.skipif(os.name != "nt", reason="DPAPI transaction rollback is Windows-only")
 def test_broker_failure_rolls_back_entry_and_never_echoes_values(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:

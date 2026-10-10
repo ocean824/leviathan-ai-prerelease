@@ -115,6 +115,7 @@ def intel_evidence_payload(record: PublicOperationRecordV1) -> dict[str, object]
         "source_id": record.source_id,
         "record_id": record.record_id,
         "fetched_at": record.fetched_at.astimezone(UTC).isoformat(),
+        "first_seen_at": record.first_seen_at.astimezone(UTC).isoformat(),
         "as_of": record.as_of.astimezone(UTC).isoformat(),
         "event_at": record.event_at.astimezone(UTC).isoformat() if record.event_at else None,
         "published_at": (
@@ -129,6 +130,10 @@ def intel_evidence_payload(record: PublicOperationRecordV1) -> dict[str, object]
         "factor_tags": list(record.factor_tags),
         "quality": record.quality,
         "status": record.status.value,
+        "template_sha256": record.template_sha256,
+        "approval_id": record.approval_id,
+        "approval_deadline": record.approval_deadline.astimezone(UTC).isoformat(),
+        "freshness_deadline": record.freshness_deadline.astimezone(UTC).isoformat(),
         "typed_values": record.data.model_dump(mode="json"),
         "values": dict(record.values),
         "redistribution": False,

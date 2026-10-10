@@ -1,0 +1,42 @@
+{
+  "name": "api-anything",
+  "version": "0.1.0",
+  "description": "Patched api-anything runtime for Leviathan's public collector.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/execute.js",
+  "types": "dist/execute.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/execute.d.ts",
+      "default": "./dist/execute.js"
+    }
+  },
+  "files": ["dist", "LICENSE"],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-vendor.mjs"
+  },
+  "keywords": [
+    "api",
+    "reverse-engineering",
+    "mcp",
+    "agents",
+    "scraping",
+    "self-healing",
+    "claude-code"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodnight000/api-anything.git"
+  },
+  "dependencies": {
+    "node-html-parser": "9.0.4",
+    "playwright-core": "1.63.0",
+    "tldts": "7.4.18",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {}
+}

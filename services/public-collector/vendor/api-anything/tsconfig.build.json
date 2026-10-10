@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "noEmitOnError": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true
+  },
+  "include": [
+    "src/browser.ts",
+    "src/classify.ts",
+    "src/execute.ts",
+    "src/extract.ts",
+    "src/heal.ts",
+    "src/http.ts",
+    "src/session.ts",
+    "src/spec.ts",
+    "src/store.ts",
+    "src/types.ts"
+  ]
+}

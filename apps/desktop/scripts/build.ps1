@@ -229,6 +229,17 @@ try {
         ($configOverride | ConvertTo-Json -Depth 12),
         [Text.UTF8Encoding]::new($false)
     )
+    $bundle = Join-Path $tauri 'target\release\bundle'
+    $bundleFull = [IO.Path]::GetFullPath($bundle).TrimEnd('\') + '\'
+    $nsisOutput = Join-Path $bundle 'nsis'
+    $nsisOutputFull = [IO.Path]::GetFullPath($nsisOutput)
+    if (-not $nsisOutputFull.StartsWith($bundleFull, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Unsafe NSIS output path'
+    }
+    if (Test-Path -LiteralPath $nsisOutput) {
+        Remove-Item -LiteralPath $nsisOutput -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $nsisOutput | Out-Null
     Push-Location $desktop
     try {
         Invoke-WithLicenseWorkerConfig -ConfigPath $licenseWorkerConfigPath -Action {
@@ -236,7 +247,6 @@ try {
         }
     } finally { Pop-Location }
 
-    $bundle = Join-Path $tauri 'target\release\bundle'
     $installer = Get-ChildItem -LiteralPath (Join-Path $bundle 'nsis') -Filter '*-setup.exe' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $installer) { throw "NSIS installer missing under $bundle" }
     $installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
@@ -244,8 +254,13 @@ try {
     Write-Host "Installer: $($installer.FullName)"
     Write-Host "Installer SHA-256: $installerHash"
 
-    $shellConfig = Get-Content -LiteralPath (Join-Path $tauri 'tauri.conf.json') -Raw | ConvertFrom-Json
-    $version = [string]$shellConfig.version
+    $cargoManifest = Get-Content -LiteralPath (Join-Path $tauri 'Cargo.toml') -Raw
+    $packageMatch = [regex]::Match($cargoManifest, '(?ms)^\[package\]\s*(.*?)(?=^\[|\z)')
+    $versionMatch = [regex]::Match($packageMatch.Groups[1].Value, '(?m)^version\s*=\s*"([^"\r\n]+)"\s*$')
+    if (-not $packageMatch.Success -or -not $versionMatch.Success) {
+        throw 'Desktop package version is missing from Cargo.toml'
+    }
+    $version = $versionMatch.Groups[1].Value
     $signature = $null
     if ($signingEnabled) {
         $updaterArtifact = Get-ChildItem -LiteralPath $bundle -Recurse -Filter '*.nsis.zip' -File |

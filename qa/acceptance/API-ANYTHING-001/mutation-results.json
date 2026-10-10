@@ -1,0 +1,238 @@
+{
+  "baseline_failed_findings": [
+    "test_finding_bot_wall_reaches_the_user_action_handoff_with_real_vendor",
+    "test_finding_child_env_must_not_carry_secrets_or_browser_roots",
+    "test_finding_knowable_at_may_not_precede_publication_or_availability",
+    "test_finding_learn_challenge_must_open_visible_window",
+    "test_finding_owner_browser_cookie_import_is_unreachable",
+    "test_finding_second_call_in_same_process_must_not_block_for_the_cadence"
+  ],
+  "mutants": [
+    {
+      "id": "M01-skip-repair-canary",
+      "rule": 3,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_repair_canary_failure_keeps_old_version_serving"
+      ],
+      "tail": "2 failed, 38 passed, 1 xfailed in 11.04s"
+    },
+    {
+      "id": "M02-skip-learn-canary",
+      "rule": 3,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_learn_requires_canary_agreement_between_examples",
+        "test_learn_with_empty_second_example_is_not_activated"
+      ],
+      "tail": "3 failed, 37 passed, 1 xfailed in 10.98s"
+    },
+    {
+      "id": "M03-auto-dismiss-challenge-as-completed",
+      "rule": 4,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_challenge_declined_gives_typed_notification_then_declined_and_abstains",
+        "test_challenge_during_repair_hands_off_and_declines",
+        "test_challenge_reasons_route_to_user_action[Cloudflare",
+        "test_challenge_reasons_route_to_user_action[captcha",
+        "test_challenge_reasons_route_to_user_action[please",
+        "test_challenge_reasons_route_to_user_action[robot"
+      ],
+      "tail": "7 failed, 33 passed, 1 xfailed in 12.49s"
+    },
+    {
+      "id": "M04-ignore-challenge-timeout",
+      "rule": 4,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_challenge_timeout_gives_timeout_and_abstains"
+      ],
+      "tail": "2 failed, 38 passed, 1 xfailed in 11.73s"
+    },
+    {
+      "id": "M05-no-user-action-notification",
+      "rule": 4,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_challenge_completed_resumes_with_one_retry",
+        "test_challenge_declined_gives_typed_notification_then_declined_and_abstains",
+        "test_challenge_during_repair_hands_off_and_declines",
+        "test_challenge_reasons_route_to_user_action[Cloudflare",
+        "test_challenge_reasons_route_to_user_action[captcha",
+        "test_challenge_reasons_route_to_user_action[please"
+      ],
+      "tail": "10 failed, 30 passed, 1 xfailed in 12.52s"
+    },
+    {
+      "id": "M06-accept-non-allowlisted-operation",
+      "rule": 1,
+      "target": "contracts",
+      "status": "KILLED",
+      "killed_by": [
+        "test_allowlist_is_identical_in_node_python_and_registry",
+        "test_node_unit_suite"
+      ],
+      "tail": "2 failed, 40 passed, 2 xfailed in 36.96s"
+    },
+    {
+      "id": "M07-skip-template-hash-pin",
+      "rule": 3,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_invalid_or_escaping_registry_entries_fail_closed[<lambda>0]",
+        "test_tampered_template_file_is_refused_not_served"
+      ],
+      "tail": "3 failed, 37 passed, 1 xfailed in 15.13s"
+    },
+    {
+      "id": "M08-canary-always-compatible",
+      "rule": 3,
+      "target": "canary",
+      "status": "KILLED",
+      "killed_by": [
+        "test_learn_requires_canary_agreement_between_examples",
+        "test_repair_canary_failure_keeps_old_version_serving",
+        "test_node_unit_suite"
+      ],
+      "tail": "4 failed, 39 passed, 1 xfailed in 22.02s"
+    },
+    {
+      "id": "M09-challenge-timeout-returns-completed",
+      "rule": 4,
+      "target": "challenge",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite"
+      ],
+      "tail": "1 failed, 2 passed in 11.63s"
+    },
+    {
+      "id": "M10-challenge-window-headless",
+      "rule": 4,
+      "target": "challenge",
+      "status": "KILLED",
+      "killed_by": [
+        "test_node_unit_suite"
+      ],
+      "tail": "1 failed, 2 passed in 16.04s"
+    },
+    {
+      "id": "M11-human-wait-unbounded-ish",
+      "rule": 4,
+      "target": "contracts",
+      "status": "KILLED",
+      "killed_by": [
+        "test_challenge_declined_gives_typed_notification_then_declined_and_abstains",
+        "test_node_unit_suite"
+      ],
+      "tail": "3 failed, 40 passed, 1 xfailed in 21.58s"
+    },
+    {
+      "id": "M12-missing-knowable-at-borrowed-from-fetch",
+      "rule": 5,
+      "target": "main",
+      "status": "KILLED",
+      "killed_by": [
+        "test_missing_knowable_at_stays_null_and_quality_unknown_through_the_sidecar"
+      ],
+      "tail": "2 failed, 38 passed, 1 xfailed in 11.45s"
+    },
+    {
+      "id": "M13-client-accepts-future-knowable-at",
+      "rule": 5,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_future_knowable_or_asof_is_a_hard_error_at_decision_time"
+      ],
+      "tail": "2 failed, 61 passed, 1 xfailed in 11.79s"
+    },
+    {
+      "id": "M14-client-missing-knowable-at-not-abstained",
+      "rule": 5,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_missing_knowable_at_abstains_not_errors_and_never_borrows_fetch_time",
+        "test_mixed_records_only_knowable_ones_become_evidence"
+      ],
+      "tail": "3 failed, 60 passed, 1 xfailed in 9.62s"
+    },
+    {
+      "id": "M15-client-drops-redistribution-check",
+      "rule": 5,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_malformed_or_untrusted_replies_fail_closed[record"
+      ],
+      "tail": "3 failed, 60 passed, 1 xfailed in 10.90s"
+    },
+    {
+      "id": "M16-client-allowlist-widened",
+      "rule": 1,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_allowlist_is_identical_in_node_python_and_registry",
+        "test_imports_resolve_to_frozen_worktree"
+      ],
+      "tail": "2 failed, 37 passed, 2 xfailed in 24.48s"
+    },
+    {
+      "id": "M17-client-timeout-not-enforced",
+      "rule": 1,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_imports_resolve_to_frozen_worktree",
+        "test_python_timeout_is_enforced_and_child_is_killed"
+      ],
+      "tail": "2 failed, 37 passed, 2 xfailed in 51.91s"
+    },
+    {
+      "id": "M18-client-lifetime-unbounded",
+      "rule": 1,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_imports_resolve_to_frozen_worktree",
+        "test_process_lifetime_is_bounded_and_restarted"
+      ],
+      "tail": "2 failed, 37 passed, 2 xfailed in 29.59s"
+    },
+    {
+      "id": "M19-client-source-identity-unchecked",
+      "rule": 5,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_malformed_or_untrusted_replies_fail_closed[source_id"
+      ],
+      "tail": "3 failed, 60 passed, 1 xfailed in 10.07s"
+    },
+    {
+      "id": "M20-client-future-asof-accepted",
+      "rule": 5,
+      "target": "client",
+      "status": "KILLED",
+      "killed_by": [
+        "test_record_level_future_observation_is_a_hard_error_even_if_reply_header_is_old"
+      ],
+      "tail": "first run SURVIVED (masked by result-level check); test added; rerun of test_04 killed it"
+    }
+  ],
+  "killed": 20,
+  "survived": [],
+  "invalid": [],
+  "total": 20,
+  "seconds": 460,
+  "note": "M20 initially survived; targeted test added and M20 re-run (killed)."
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,11 +51,25 @@ def test_intel_payload_preserves_full_operation_record() -> None:
     assert payload["template_version"] == "fixture-1"
     assert payload["source_tier"] == 3
     assert payload["record_id"] == "cnn-fg-20261009"
+    assert payload["first_seen_at"] == record.first_seen_at.astimezone(UTC).isoformat()
     assert payload["status"] == "OK"
     assert payload["quality"] == "source_timestamped"
+    assert payload["template_sha256"] == record.template_sha256
+    assert payload["approval_id"] == record.approval_id
+    assert payload["approval_deadline"] == record.approval_deadline.astimezone(UTC).isoformat()
+    assert payload["freshness_deadline"] == record.freshness_deadline.astimezone(UTC).isoformat()
     assert payload["redistribution"] is False
     assert payload["record_digest"] == record.record_digest
     assert payload["typed_values"] == record.data.model_dump(mode="json")
+
+
+def test_available_timestamp_can_establish_source_timestamped_quality() -> None:
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["records"][0]["published_at"] = None
+    raw["records"][0]["available_at"] = "2026-10-09T14:59:00Z"
+    record = parse_operation_result(SidecarReply.model_validate_json(json.dumps(raw))).records[0]
+    assert record.quality == "source_timestamped"
+    assert record.knowable_at == datetime(2026, 10, 9, 14, 59, tzinfo=UTC)
 
 
 def test_learn_validates_both_examples_before_private_stdio_request() -> None:
@@ -66,10 +81,12 @@ def test_learn_validates_both_examples_before_private_stdio_request() -> None:
         operation_id: str | None = None,
         args: object = None,
         examples: object = None,
-    ) -> SidecarReply:
-        sent.update(method=method, operation_id=operation_id, args=args, examples=examples)
-        raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
-        return SidecarReply.model_validate_json(json.dumps(raw))
+        ) -> SidecarReply:
+            sent.update(method=method, operation_id=operation_id, args=args, examples=examples)
+            raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            raw["candidate_only"] = True
+            raw["records"] = []
+            return SidecarReply.model_validate_json(json.dumps(raw))
 
     supervisor._request = fake_request  # type: ignore[method-assign]
     version = supervisor.learn("cnn.fear_greed", ({}, {}))
@@ -96,6 +113,7 @@ def test_sidecar_requires_an_app_owned_data_directory() -> None:
 def test_missing_knowable_at_is_abstained_from_evidence() -> None:
     raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
     raw["records"][0]["knowable_at"] = None
+    raw["records"][0]["quality"] = "availability_unknown"
     raw["knowable_at"] = None
     result = parse_operation_result(SidecarReply.model_validate_json(json.dumps(raw)))
     assert result.evidence_records(datetime(2026, 10, 9, 15, 1, tzinfo=UTC)) == ()
@@ -174,3 +192,108 @@ def test_user_action_notification_is_typed_and_allowlisted() -> None:
     )
     assert event.status == "USER_ACTION_REQUIRED"
     assert event.operation_id == "cnn.fear_greed"
+
+
+def test_big_sur_replay_mode_disables_learning(monkeypatch: pytest.MonkeyPatch) -> None:
+    import leviathan_market_data.public_sources.api_anything_client as client_module
+
+    monkeypatch.setattr(client_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(client_module.platform, "mac_ver", lambda: ("11.7.10", ("", "", ""), ""))
+    supervisor = CollectorSupervisor("node", "sidecar.js", data_dir="unused")
+    assert supervisor._replay_only is True
+    with pytest.raises(PublicOperationError) as exc:
+        supervisor.learn("calendar.fed", ({"year": 2026}, {"year": 2027}))
+    assert exc.value.code is PublicOperationErrorCode.BROWSER_UNAVAILABLE
+
+
+def test_forced_close_clears_only_app_owned_chrome_profile_locks(tmp_path: Path) -> None:
+    supervisor = CollectorSupervisor("node", "sidecar.js", data_dir=tmp_path)
+    profile = tmp_path / "isolated" / "cnn-fear-greed"
+    profile.mkdir(parents=True)
+    lock_file = profile / "SingletonLock"
+    lock_file.write_text("stale", encoding="utf-8")
+    unrelated = profile / "Preferences"
+    unrelated.write_text("keep", encoding="utf-8")
+
+    class ExitedProcess:
+        @staticmethod
+        def poll() -> int:
+            return 0
+
+    supervisor._proc = ExitedProcess()  # type: ignore[assignment]
+    supervisor.close(force=True)
+    assert not lock_file.exists()
+    assert unrelated.read_text(encoding="utf-8") == "keep"
+
+
+def test_template_export_import_requires_committed_pin_and_rejects_cookie_material(
+    tmp_path: Path,
+) -> None:
+    from leviathan_market_data.public_sources.api_anything_templates import (
+        export_pinned_template,
+        import_pinned_template,
+    )
+
+    raw = b'{"name":"cnn-fear-greed","request":{"url":"https://www.cnn.com/api"}}'
+    digest = hashlib.sha256(raw).hexdigest()
+    source_templates = tmp_path / "source" / "services" / "public-collector" / "templates"
+    registry = source_templates / "PINNED.json"
+    pin = {
+        "version": "v1",
+        "sha256": digest,
+        "template_path": "cnn.fear_greed/v1.json",
+        "tos_review_id": "fixture-review",
+        "allowed_hosts": ["www.cnn.com"],
+        "challenge_hosts": [],
+        "review_note": "reviewed fixture pin",
+    }
+    registry.parent.mkdir(parents=True)
+    registry.write_text(json.dumps({"operations": {"cnn.fear_greed": pin}}), encoding="utf-8")
+    template_path = source_templates / pin["template_path"]
+    template_path.parent.mkdir(parents=True)
+    template_path.write_bytes(raw)
+    bundle = tmp_path / "export.json"
+    assert export_pinned_template(
+        "cnn.fear_greed",
+        data_dir=tmp_path / "unused-data",
+        registry_path=registry,
+        destination=bundle,
+    ) == digest
+
+    destination_templates = tmp_path / "destination" / "services" / "public-collector" / "templates"
+    destination_registry = destination_templates / "PINNED.json"
+    destination_registry.parent.mkdir(parents=True)
+    destination_registry.write_text(
+        json.dumps({"operations": {"cnn.fear_greed": pin}}), encoding="utf-8"
+    )
+    assert import_pinned_template(
+        bundle,
+        registry_path=destination_registry,
+        data_dir=tmp_path / "unused-replay-data",
+    ) == digest
+    assert (destination_templates / pin["template_path"]).read_bytes() == raw
+
+    exported = json.loads(bundle.read_text(encoding="utf-8"))
+    exported["approval_id"] = "unreviewed"
+    bundle.write_text(json.dumps(exported), encoding="utf-8")
+    with pytest.raises(PublicOperationError) as exc:
+        import_pinned_template(
+            bundle,
+            registry_path=destination_registry,
+            data_dir=tmp_path / "unused-replay-data",
+        )
+    assert exc.value.code is PublicOperationErrorCode.SCHEMA_INVALID
+
+    unsafe = b'{"headers":{"Cookie":"session=owner"}}'
+    template_path.write_bytes(unsafe)
+    registry_data = json.loads(registry.read_text(encoding="utf-8"))
+    registry_data["operations"]["cnn.fear_greed"]["sha256"] = hashlib.sha256(unsafe).hexdigest()
+    registry.write_text(json.dumps(registry_data), encoding="utf-8")
+    with pytest.raises(PublicOperationError) as exc:
+        export_pinned_template(
+            "cnn.fear_greed",
+            data_dir=tmp_path / "unused-data",
+            registry_path=registry,
+            destination=bundle,
+        )
+    assert exc.value.code is PublicOperationErrorCode.SCHEMA_INVALID

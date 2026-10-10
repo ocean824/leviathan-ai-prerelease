@@ -1,0 +1,6 @@
+[tool.ruff]
+extend = "../../../pyproject.toml"
+
+[tool.ruff.lint.per-file-ignores]
+"*.py" = ["B007", "E501", "E741", "F401", "I001", "N812", "RUF059", "RUF100", "SLF001"]
+"cycle1/*.py" = ["B007", "E501", "E741", "F401", "I001", "N812", "RUF059", "RUF100", "SLF001"]

@@ -60,9 +60,9 @@ triple="$2"
   exit 2
 }
 sidecar_name="leviathan-desktop-$triple"
-sidecar="$app/Contents/Resources/sidecar/$sidecar_name"
+sidecar="$app/Contents/Resources/resources/sidecar/$sidecar_name"
 [[ -x "$sidecar" ]] || { echo "Bundled sidecar is missing or not executable: $sidecar" >&2; exit 1; }
-[[ -d "$app/Contents/Resources/sidecar/_internal" ]] || {
+[[ -d "$app/Contents/Resources/resources/sidecar/_internal" ]] || {
   echo "PyInstaller sidecar support directory is missing" >&2
   exit 1
 }
