@@ -35,6 +35,7 @@ MAX_PROFILE_IDENTITIES_PER_GROUP = 4096
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _DEVICE_RE = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])$")
 _ISSUER = Issuer("leviathan_vault.app_credentials.profile.v1")
+_REFERENCE_ISSUER = Issuer("leviathan_vault.app_credentials.reference.v1")
 Provider = Literal[
     "ALPACA",
     "IBKR",
@@ -53,6 +54,9 @@ Provider = Literal[
     "OPENAI",
     "OPENAI_COMPATIBLE",
     "ROUTING",
+    "MT5_FOREXCOM",
+    "COINBASE_SPOT",
+    "POLYMARKET",
 ]
 Environment = Literal["PAPER", "DEMO", "LIVE"]
 _ENVIRONMENTS: dict[str, frozenset[str]] = {
@@ -73,6 +77,9 @@ _ENVIRONMENTS: dict[str, frozenset[str]] = {
     "OPENAI": frozenset({"PAPER"}),
     "OPENAI_COMPATIBLE": frozenset({"PAPER"}),
     "ROUTING": frozenset({"PAPER", "DEMO", "LIVE"}),
+    "MT5_FOREXCOM": frozenset({"DEMO", "LIVE"}),
+    "COINBASE_SPOT": frozenset({"PAPER", "LIVE"}),
+    "POLYMARKET": frozenset({"PAPER", "LIVE"}),
 }
 _SECRET_FIELDS: dict[str, tuple[str, ...]] = {
     "ALPACA": ("key_id", "secret_key", "access_token", "refresh_token"),
@@ -92,16 +99,22 @@ _SECRET_FIELDS: dict[str, tuple[str, ...]] = {
     "OPENAI": ("api_key",),
     "OPENAI_COMPATIBLE": ("api_key",),
     "ROUTING": (),
+    "MT5_FOREXCOM": ("password",),
+    "COINBASE_SPOT": ("private_key",),
+    "POLYMARKET": ("wallet_private_key", "api_key", "api_secret", "api_passphrase"),
 }
 _CONFIGURED_FIELDS: dict[str, tuple[str, ...]] = {
     provider: tuple(fields) for provider, fields in _SECRET_FIELDS.items()
 }
 _CONFIGURED_FIELDS["ALPACA"] = ("key_id", "secret_key")
+_CONFIGURED_FIELDS["COINBASE_SPOT"] = ("private_key",)
 _REQUIRED_SECRET_GROUPS: dict[str, tuple[frozenset[str], ...]] = {
     "ALPACA": (frozenset({"key_id", "secret_key"}), frozenset({"access_token"})),
     "TASTYTRADE": (frozenset({"oauth_client_secret", "access_token"}),),
     "CTRADER": (frozenset({"oauth_client_secret", "access_token"}),),
     "COINBASE": (frozenset({"private_key"}), frozenset({"access_token"})),
+    "COINBASE_SPOT": (frozenset({"private_key"}),),
+    "POLYMARKET": (frozenset({"wallet_private_key"}),),
 }
 _PROVIDER_FIELDS: dict[str, frozenset[str]] = {
     "ALPACA": frozenset(),
@@ -121,10 +134,15 @@ _PROVIDER_FIELDS: dict[str, frozenset[str]] = {
     "OPENAI": frozenset(),
     "OPENAI_COMPATIBLE": frozenset({"base_url", "display_label"}),
     "ROUTING": frozenset({"default_route"}),
+    "MT5_FOREXCOM": frozenset({"server", "login"}),
+    "COINBASE_SPOT": frozenset({"key_name"}),
+    "POLYMARKET": frozenset({"account_id"}),
 }
 _OPTIONAL_PROVIDER_FIELDS: dict[str, frozenset[str]] = {
+    "ALPACA": frozenset({"account_id"}),
     "OPENAI": frozenset({"organization"}),
     "COINBASE": frozenset({"key_name", "token_expires_at"}),
+    "KALSHI": frozenset({"key_name"}),
 }
 _REQUIRED_SECRET_FIELDS: dict[str, frozenset[str]] = {
     "OPENAI_COMPATIBLE": frozenset(),
@@ -279,6 +297,30 @@ class CredentialProfileV1(SealedModel):
         return self
 
 
+class CredentialReferenceV1(SealedModel):
+    """Typed, non-secret handle that may flow through configuration and UI."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True, hide_input_in_errors=True)
+
+    provider: Provider
+    environment: Environment
+    profile_id: str
+    revision: int
+
+    @field_validator("profile_id")
+    @classmethod
+    def profile_id_is_safe(cls, value: str) -> str:
+        return _validate_id(value, "profile_id")
+
+    @model_validator(mode="after")
+    def reference_is_valid(self) -> CredentialReferenceV1:
+        if self.environment not in _ENVIRONMENTS[self.provider]:
+            raise ValueError("INVALID_PROVIDER_ENVIRONMENT")
+        if type(self.revision) is not int or self.revision < 1:
+            raise ValueError("INVALID_REVISION")
+        return self
+
+
 def issue_profile(**values: Any) -> CredentialProfileV1:
     try:
         profile = CredentialProfileV1(**values)
@@ -287,6 +329,23 @@ def issue_profile(**values: Any) -> CredentialProfileV1:
     except (ValidationError, ValueError, TypeError):
         raise CredentialError("INVALID_PROFILE") from None
     return _ISSUER.issue(profile)
+
+
+def issue_credential_reference(profile: CredentialProfileV1) -> CredentialReferenceV1:
+    """Issue a secret-free reference only from a valid stored profile."""
+    if type(profile) is not CredentialProfileV1:
+        raise CredentialError("INVALID_PROFILE")
+    require(profile, _ISSUER.tag)
+    try:
+        reference = CredentialReferenceV1(
+            provider=profile.provider,
+            environment=profile.environment,
+            profile_id=profile.profile_id,
+            revision=profile.revision,
+        )
+    except (ValidationError, ValueError, TypeError):
+        raise CredentialError("INVALID_PROFILE") from None
+    return _REFERENCE_ISSUER.issue(reference)
 
 
 class ResolvedCredentialV1:
@@ -593,14 +652,21 @@ def _blob(data: bytearray) -> tuple[_DataBlob, Any]:
     return _DataBlob(len(data), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ubyte))), buffer
 
 
+def require_macos_keychain_backend(backend: object) -> Any:
+    """Validate keyring's selected implementation before it can access credentials."""
+    module = getattr(type(backend), "__module__", None)
+    if type(module) is not str or not module.startswith("keyring.backends.macOS"):
+        raise CredentialError("UNAVAILABLE")
+    return backend
+
+
 def _crypt(data: bytearray, entropy: bytearray, *, decrypt: bool) -> bytearray:
     if sys.platform == "darwin":
         try:
-            import keyring  # type: ignore[import-not-found]
+            import importlib
 
-            backend = keyring.get_keyring()
-            if not backend.__class__.__module__.startswith("keyring.backends.macOS"):
-                raise CredentialError("UNAVAILABLE")
+            keyring: Any = importlib.import_module("keyring")
+            require_macos_keychain_backend(keyring.get_keyring())
             account = hashlib.sha256(entropy).hexdigest()
             if decrypt:
                 if data != b"keychain:v1":
@@ -619,7 +685,7 @@ def _crypt(data: bytearray, entropy: bytearray, *, decrypt: bool) -> bytearray:
             raise
         except Exception:
             raise CredentialError("CORRUPT" if decrypt else "UNAVAILABLE") from None
-    if os.name != "nt":
+    if sys.platform != "win32":
         raise CredentialError("UNAVAILABLE")
     source, source_buffer = _blob(data)
     extra, extra_buffer = _blob(entropy)
@@ -1012,11 +1078,10 @@ class DPAPICredentialStore(InMemoryCredentialStore):
             if sys.platform == "darwin":
                 entropy = self._profile_entropy(identity)
                 try:
-                    import keyring
+                    import importlib
 
-                    backend = keyring.get_keyring()
-                    if not backend.__class__.__module__.startswith("keyring.backends.macOS"):
-                        raise CredentialError("UNAVAILABLE")
+                    keyring: Any = importlib.import_module("keyring")
+                    require_macos_keychain_backend(keyring.get_keyring())
                     account = hashlib.sha256(entropy).hexdigest()
                     if (
                         keyring.get_password("com.xyrasystems.leviathanai.credentials", account)

@@ -36,6 +36,16 @@ _READ_ROUTES = {
         "/v1/knowledge/ingestions",
     ),
     "connections.status.read": ("connections", "GET", "/api/connections/status"),
+    "connections.credentials.status.read": (
+        "credential_connections",
+        "GET",
+        "/api/connections/credentials",
+    ),
+    "connections.credentials.test": (
+        "credential_connections",
+        "POST",
+        "/api/connections/credentials/{provider}/{environment}/{profile_id}/test",
+    ),
     "data_sources.status.read": ("data_sources", "GET", "/api/data-sources"),
     "risk.status.read": ("risk", "GET", "/risk/status"),
     "ea.templates.list": ("ea_template_catalog", "GET", "/v1/ea/templates"),

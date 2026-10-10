@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import InitVar, dataclass, fields, is_dataclass
+from dataclasses import FrozenInstanceError, InitVar, dataclass, fields, is_dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum, StrEnum
@@ -67,7 +67,7 @@ class DecisionInputError(ValueError):
         super().__init__(code)
 
 
-class DecisionFrozenError(TypeError):
+class DecisionFrozenError(FrozenInstanceError):
     """Content-free denial of copy or serialization bypasses."""
 
     def __init__(self) -> None:
@@ -76,6 +76,12 @@ class DecisionFrozenError(TypeError):
 
 
 class _FrozenRecord:
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        raise DecisionFrozenError
+
+    def __delattr__(self, _name: str) -> NoReturn:
+        raise DecisionFrozenError
+
     def __copy__(self) -> NoReturn:
         raise DecisionFrozenError
 
@@ -87,6 +93,13 @@ class _FrozenRecord:
 
     def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
         raise DecisionFrozenError
+
+
+def _content_free_frozen(cls: type) -> type:
+    """Replace dataclass mutation hooks that include caller field names."""
+    setattr(cls, "__setattr__", _FrozenRecord.__setattr__)  # noqa: B010
+    setattr(cls, "__delattr__", _FrozenRecord.__delattr__)  # noqa: B010
+    return cls
 
 
 def _require(condition: bool, code: str) -> None:
@@ -218,6 +231,7 @@ class DecisionReason(StrEnum):
     LIVE_FALLBACK_SIM = "LIVE_FALLBACK_SIM"
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True)
 class DecisionIdentityV1(_FrozenRecord):
     tenant_id: str
@@ -300,6 +314,7 @@ def _issue_link_from_verified_sources(
     return issue("FUSION", fusion), issue("SIZING", sizing), issue("PORTFOLIO", portfolio)
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True)
 class DecisionPolicyV1(_FrozenRecord):
     policy_id: str
@@ -334,6 +349,7 @@ class DecisionPolicyV1(_FrozenRecord):
         _version(self.schema_version)
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True)
 class DecisionContextV1(_FrozenRecord):
     identity: DecisionIdentityV1
@@ -386,6 +402,7 @@ class DecisionContextV1(_FrozenRecord):
         _version(self.schema_version)
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True)
 class DecisionTraceStepV1(_FrozenRecord):
     stage: str
@@ -405,6 +422,7 @@ class DecisionTraceStepV1(_FrozenRecord):
         _version(self.schema_version)
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True, weakref_slot=True, init=False)
 class DecisionProposalV1(_FrozenRecord):
     status: DecisionStatus

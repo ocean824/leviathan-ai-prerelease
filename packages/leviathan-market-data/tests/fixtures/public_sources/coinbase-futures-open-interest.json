@@ -1,0 +1,31 @@
+{
+  "products": [
+    {
+      "product_id": "BIP-USD",
+      "product_type": "FUTURE",
+      "display_name": "nano Bitcoin Perpetual",
+      "future_product_details": {
+        "contract_code": "BIP",
+        "perpetual_details": {
+          "open_interest": "179300",
+          "funding_rate": "0.0001"
+        }
+      }
+    },
+    {
+      "product_id": "BTC-DEC26-CDE",
+      "product_type": "FUTURE",
+      "display_name": "Bitcoin December 2026",
+      "future_product_details": {
+        "contract_code": "BTC",
+        "contract_expiry": "2026-12-18T00:00:00Z",
+        "open_interest": "121786"
+      }
+    }
+  ],
+  "num_products": 2,
+  "pagination": {
+    "has_next": false,
+    "has_prev": false
+  }
+}

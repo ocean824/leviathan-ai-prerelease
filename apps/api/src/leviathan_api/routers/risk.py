@@ -12,6 +12,7 @@ from pydantic import BaseModel, model_validator
 
 from leviathan_core.agent_council.publication_models import is_safe_display_label
 from leviathan_core.risk.halt_reasons import is_known_halt_reason, is_static_halt_reason
+from leviathan_core.security.authz_models import require_trusted_principal
 
 router = APIRouter(prefix="/risk", tags=["risk"])
 log = structlog.get_logger(__name__)
@@ -36,9 +37,7 @@ class HaltRequest(BaseModel):
 
 def _validate_halt_request(body: HaltRequest, *, allow_patterns: bool) -> None:
     valid_reason = (
-        is_known_halt_reason(body.reason)
-        if allow_patterns
-        else is_static_halt_reason(body.reason)
+        is_known_halt_reason(body.reason) if allow_patterns else is_static_halt_reason(body.reason)
     )
     if not valid_reason:
         raise HTTPException(status_code=422, detail="INVALID_HALT_REASON")
@@ -77,6 +76,17 @@ def engage_halt(request: Request, body: HaltRequest) -> dict[str, object]:
 
 @router.post("/halt/lift")
 def lift_halt(request: Request, body: HaltRequest) -> dict[str, object]:
+    # The local shell middleware is the only issuer on this path. A caller must
+    # have a principal bound to this desktop instance before it can lift HALT.
+    try:
+        principal = require_trusted_principal(getattr(request.state, "trusted_principal", None))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="TRUSTED_PRINCIPAL_REQUIRED") from None
+    if getattr(request.state, "trusted_instance_principal_id", None) != principal.principal_id:
+        raise HTTPException(status_code=401, detail="TRUSTED_PRINCIPAL_REQUIRED")
+    features: object = getattr(request.state, "trusted_instance_features", frozenset())
+    if type(features) is not frozenset or "live_trading" not in features:
+        raise HTTPException(status_code=403, detail="LIVE_TRADING_ENTITLEMENT_REQUIRED")
     state = request.app.state.leviathan
     if body.note is not None and not is_safe_display_label(body.note):
         raise HTTPException(status_code=422, detail="INVALID_HALT_NOTE")

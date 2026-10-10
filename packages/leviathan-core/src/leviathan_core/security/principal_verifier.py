@@ -128,6 +128,7 @@ class VerifiedPrincipalV1(SealedModel):
     venue: str | None
     portfolio: str | None
     strategy: str | None
+    device_id: str | None = None
     jti: str
     issued_at_ns: int
     expires_at_ns: int
@@ -168,7 +169,8 @@ def _json_object(segment: str) -> dict[str, Any]:
     invalid = False
     try:
         value = json.loads(
-            _decode_segment(segment), object_pairs_hook=_unique_pairs,
+            _decode_segment(segment),
+            object_pairs_hook=_unique_pairs,
             parse_constant=lambda _: _reject(),
         )
     except Exception:
@@ -259,9 +261,9 @@ class PrincipalVerifier:
         claims = _json_object(encoded_claims)
         if header.get("alg") != "RS256" or type(header.get("alg")) is not str:
             _reject()
-        if (
-            not set(header).issubset({"alg", "kid", "typ"})
-            or header.get("typ") not in (None, "JWT")
+        if not set(header).issubset({"alg", "kid", "typ"}) or header.get("typ") not in (
+            None,
+            "JWT",
         ):
             _reject()
         kid = header.get("kid")
@@ -305,12 +307,16 @@ class PrincipalVerifier:
         attrs = (claims.get("venue"), claims.get("portfolio"), claims.get("strategy"))
         if any(value is not None and not _valid_id(value) for value in attrs):
             _reject()
+        device_id = claims.get("device_id")
+        if device_id is not None and not _valid_id(device_id):
+            _reject()
         issued = _seconds(claims.get("iat"), "iat")
         not_before = _seconds(claims.get("nbf"), "nbf")
         expires = _seconds(claims.get("exp"), "exp")
         now_ns = _clock_ns(self._clock)
         if (
-            expires <= issued or expires - issued > 900
+            expires <= issued
+            or expires - issued > 900
             or not_before > expires
             or issued * 1_000_000_000 > now_ns + 60_000_000_000
             or not_before * 1_000_000_000 > now_ns + 60_000_000_000
@@ -335,9 +341,11 @@ class PrincipalVerifier:
                 _reject()
             if peer_certificate_der is None:
                 _reject()
-            actual = base64.urlsafe_b64encode(
-                hashlib.sha256(peer_certificate_der).digest()
-            ).rstrip(b"=").decode("ascii")
+            actual = (
+                base64.urlsafe_b64encode(hashlib.sha256(peer_certificate_der).digest())
+                .rstrip(b"=")
+                .decode("ascii")
+            )
             if not hmac.compare_digest(binding, actual):
                 _reject()
         elif policy.require_mtls:
@@ -347,11 +355,22 @@ class PrincipalVerifier:
         try:
             verified = VerifiedPrincipalV1(
                 _construction_marker=_CONSTRUCTION_MARKER,
-                issuer=policy.issuer, audience=policy.audience, org_id=policy.org_id,
-                project_id=policy.project_id, subject_id=subject, role=role,
-                scopes=tuple(scope), env=policy.env, venue=attrs[0], portfolio=attrs[1],
-                strategy=attrs[2], jti=jti, issued_at_ns=issued * 1_000_000_000,
-                expires_at_ns=expires * 1_000_000_000, verified_at_ns=now_ns,
+                issuer=policy.issuer,
+                audience=policy.audience,
+                org_id=policy.org_id,
+                project_id=policy.project_id,
+                subject_id=subject,
+                role=role,
+                scopes=tuple(scope),
+                env=policy.env,
+                venue=attrs[0],
+                portfolio=attrs[1],
+                strategy=attrs[2],
+                jti=jti,
+                issued_at_ns=issued * 1_000_000_000,
+                device_id=device_id,
+                expires_at_ns=expires * 1_000_000_000,
+                verified_at_ns=now_ns,
                 certificate_binding=binding,
             )
             return _SEALED.issue(verified)
@@ -368,8 +387,10 @@ class PrincipalVerifier:
             raise PrincipalVerificationError(VerificationCodeV1.PRINCIPAL_UNISSUED) from None
         policy = self._trusted_issuer
         if (
-            verified.issuer != policy.issuer or verified.audience != policy.audience
-            or verified.org_id != policy.org_id or verified.project_id != policy.project_id
+            verified.issuer != policy.issuer
+            or verified.audience != policy.audience
+            or verified.org_id != policy.org_id
+            or verified.project_id != policy.project_id
             or verified.env != policy.env
         ):
             raise PrincipalVerificationError(VerificationCodeV1.PRINCIPAL_UNISSUED)
@@ -391,10 +412,15 @@ class PrincipalVerifier:
             raise PrincipalVerificationError(VerificationCodeV1.PRINCIPAL_UNISSUED)
         try:
             return PrincipalV1(
-                principal_id=verified.subject_id, project_id=verified.project_id,
-                roles=(verified.role,), env=verified.env, venue=verified.venue,
-                portfolio=verified.portfolio, strategy=verified.strategy,
+                principal_id=verified.subject_id,
+                project_id=verified.project_id,
+                roles=(verified.role,),
+                env=verified.env,
+                venue=verified.venue,
+                portfolio=verified.portfolio,
+                strategy=verified.strategy,
                 break_glass=False,
+                device_id=verified.device_id,
             )
         except AuthorizationModelError:
             raise PrincipalVerificationError(VerificationCodeV1.PRINCIPAL_UNISSUED) from None
@@ -406,7 +432,12 @@ class PrincipalVerifier:
 
 
 __all__ = [
-    "PinnedKeySetPort", "PrincipalVerificationError", "PrincipalVerifier",
-    "RSAPublicKeyV1", "RevocationPort", "TrustedIssuerV1",
-    "VerificationCodeV1", "VerifiedPrincipalV1",
+    "PinnedKeySetPort",
+    "PrincipalVerificationError",
+    "PrincipalVerifier",
+    "RSAPublicKeyV1",
+    "RevocationPort",
+    "TrustedIssuerV1",
+    "VerificationCodeV1",
+    "VerifiedPrincipalV1",
 ]

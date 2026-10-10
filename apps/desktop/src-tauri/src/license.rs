@@ -23,12 +23,15 @@ const CACHE_FILE: &str = "license-session.dpapi";
 const CACHE_FILE: &str = "license-session.keychain-ref";
 const DEVICE_ID_DOMAIN: &[u8] = b"leviathan-desktop-device-v1\0";
 const WORKER_CONFIG_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/license_worker.json"));
+const GOOGLE_CLIENT_CONFIG_JSON: &str =
+    include_str!(concat!(env!("OUT_DIR"), "/google_oauth.json"));
 static INSTALL_RUSTLS_PROVIDER: Once = Once::new();
 
 /// The pre-session bearer is memory-only and is discarded after TOTP confirmation.
 #[derive(Default)]
 pub struct PendingTotpEnrollment {
     session_token: Mutex<Option<String>>,
+    google_enrollment_token: Mutex<Option<String>>,
 }
 
 /// One-shot native proof consumed by the main-window launch listener.
@@ -40,6 +43,8 @@ struct StartupUnlockProof {
     state: &'static str,
     read_only: bool,
     features: BTreeMap<String, bool>,
+    principal_id: String,
+    entitlement_digest: String,
 }
 
 fn consume_startup_proof(
@@ -47,11 +52,15 @@ fn consume_startup_proof(
     claimed_state: &str,
     claimed_read_only: bool,
     claimed_features: &BTreeMap<String, bool>,
+    claimed_principal_id: &str,
+    claimed_entitlement_digest: &str,
 ) -> bool {
     if proof.as_ref().is_some_and(|issued| {
         issued.state == claimed_state
             && issued.read_only == claimed_read_only
             && issued.features == *claimed_features
+            && issued.principal_id == claimed_principal_id
+            && issued.entitlement_digest == claimed_entitlement_digest
     }) {
         proof.take();
         true
@@ -65,6 +74,8 @@ pub fn consume_verified_online_unlock(
     claimed_state: &str,
     claimed_read_only: bool,
     claimed_features: &BTreeMap<String, bool>,
+    claimed_principal_id: &str,
+    claimed_entitlement_digest: &str,
 ) -> bool {
     app.try_state::<VerifiedOnlineGate>()
         .and_then(|gate| {
@@ -74,6 +85,8 @@ pub fn consume_verified_online_unlock(
                     claimed_state,
                     claimed_read_only,
                     claimed_features,
+                    claimed_principal_id,
+                    claimed_entitlement_digest,
                 )
             })
         })
@@ -451,18 +464,45 @@ fn http_client() -> Result<reqwest::Client, LicenseError> {
         .map_err(|_| LicenseError::WorkerUnavailable)
 }
 
+pub fn valid_principal_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.as_bytes()[0].is_ascii_alphanumeric()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"_.:-".contains(&byte))
+}
+
+pub fn enabled_feature_csv(features: &BTreeMap<String, bool>) -> String {
+    features
+        .iter()
+        .filter_map(|(name, enabled)| enabled.then_some(name.as_str()))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn entitlement_digest(features: &BTreeMap<String, bool>) -> String {
+    hex(&Sha256::digest(enabled_feature_csv(features).as_bytes()))
+}
+
+fn introspection_subject_matches(response: &Value, principal_id: &str) -> bool {
+    response.get("subject_id").and_then(Value::as_str) == Some(principal_id)
+}
+
 fn cached_value(
     device_id: &str,
     session_token: &str,
+    principal_id: &str,
     last_online_ns: u128,
     snapshot: &Value,
 ) -> Result<Vec<u8>, LicenseError> {
-    if session_token.is_empty() || session_token.len() > 8192 {
+    if session_token.is_empty() || session_token.len() > 8192 || !valid_principal_id(principal_id) {
         return Err(LicenseError::InvalidLicense);
     }
     serde_json::to_vec(&json!({
         "device_id": device_id,
         "session_token": session_token,
+        "principal_id": principal_id,
         "last_online_ns": last_online_ns.to_string(),
         "snapshot": snapshot,
     }))
@@ -523,11 +563,18 @@ fn cache_worker_snapshot(
     app: &AppHandle,
     device_id: &str,
     session_token: &str,
+    principal_id: &str,
     verified_at_ns: u128,
     response: &Value,
 ) -> Result<(), LicenseError> {
     let snapshot = worker_snapshot(response)?;
-    let bytes = cached_value(device_id, session_token, verified_at_ns, snapshot)?;
+    let bytes = cached_value(
+        device_id,
+        session_token,
+        principal_id,
+        verified_at_ns,
+        snapshot,
+    )?;
     cache_reference(app, &bytes)
 }
 
@@ -535,7 +582,13 @@ fn offline_view_from_cache(
     cached: &Value,
     device_id: &str,
     now_ns: u128,
-) -> Result<UnlockView, LicenseError> {
+) -> Result<(UnlockView, String), LicenseError> {
+    let principal_id = cached
+        .get("principal_id")
+        .and_then(Value::as_str)
+        .filter(|value| valid_principal_id(value))
+        .ok_or(LicenseError::CacheUnavailable)?
+        .to_owned();
     let cached_device = cached
         .get("device_id")
         .and_then(Value::as_str)
@@ -560,7 +613,7 @@ fn offline_view_from_cache(
         now_ns,
     );
     if view.unlocked {
-        Ok(view)
+        Ok((view, principal_id))
     } else {
         Err(LicenseError::InvalidLicense)
     }
@@ -575,11 +628,25 @@ fn startup_unlock_allowed(view: &UnlockView) -> bool {
         }
 }
 
-fn emit_startup_unlock(app: &AppHandle, view: &UnlockView) -> Result<Value, LicenseError> {
-    if !startup_unlock_allowed(view) {
+fn emit_startup_unlock(
+    app: &AppHandle,
+    view: &UnlockView,
+    principal_id: &str,
+) -> Result<Value, LicenseError> {
+    if !startup_unlock_allowed(view) || !valid_principal_id(principal_id) {
         return Err(LicenseError::InvalidLicense);
     }
-    let value = view.json();
+    let digest = entitlement_digest(&view.features);
+    let mut value = view.json();
+    let object = value.as_object_mut().ok_or(LicenseError::InvalidLicense)?;
+    object.insert(
+        "principalId".to_owned(),
+        Value::String(principal_id.to_owned()),
+    );
+    object.insert(
+        "entitlementDigest".to_owned(),
+        Value::String(digest.clone()),
+    );
     let gate = app
         .try_state::<VerifiedOnlineGate>()
         .ok_or(LicenseError::InvalidInput)?;
@@ -587,6 +654,8 @@ fn emit_startup_unlock(app: &AppHandle, view: &UnlockView) -> Result<Value, Lice
         state: view.state,
         read_only: view.read_only,
         features: view.features.clone(),
+        principal_id: principal_id.to_owned(),
+        entitlement_digest: digest,
     });
     if app.emit("license-unlocked", value.clone()).is_err() {
         *gate.0.lock().map_err(|_| LicenseError::InvalidInput)? = None;
@@ -604,6 +673,9 @@ pub async fn license_sign_in(
     totp_code: Option<String>,
 ) -> Result<Value, String> {
     if let Ok(mut token) = pending.session_token.lock() {
+        *token = None;
+    }
+    if let Ok(mut token) = pending.google_enrollment_token.lock() {
         *token = None;
     }
     let result = async {
@@ -644,6 +716,11 @@ pub async fn license_sign_in(
         if session.get("schema_version").and_then(Value::as_u64) != Some(1) {
             return Err(LicenseError::InvalidLicense);
         }
+        let principal_id = session
+            .get("principal_id")
+            .and_then(Value::as_str)
+            .filter(|value| valid_principal_id(value))
+            .ok_or(LicenseError::AuthenticationDenied)?;
         let session_token = session
             .get("session_token")
             .and_then(Value::as_str)
@@ -695,8 +772,172 @@ pub async fn license_sign_in(
             .session_token
             .lock()
             .map_err(|_| LicenseError::InvalidInput)? = None;
-        cache_worker_snapshot(&app, &device_id, session_token, now_ns, &worker_response)?;
-        emit_startup_unlock(&app, &view)
+        cache_worker_snapshot(
+            &app,
+            &device_id,
+            session_token,
+            principal_id,
+            now_ns,
+            &worker_response,
+        )?;
+        emit_startup_unlock(&app, &view, principal_id)
+    }
+    .await;
+    result.map_err(|error: LicenseError| error.code().to_string())
+}
+
+fn google_desktop_client_id() -> Result<String, LicenseError> {
+    let config: Value =
+        serde_json::from_str(GOOGLE_CLIENT_CONFIG_JSON).map_err(|_| LicenseError::InvalidInput)?;
+    config
+        .get("desktop_client_id")
+        .and_then(Value::as_str)
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 256
+                && value.ends_with(".apps.googleusercontent.com")
+        })
+        .map(str::to_owned)
+        .ok_or(LicenseError::InvalidInput)
+}
+
+#[tauri::command]
+pub async fn license_google_sign_in(
+    app: AppHandle,
+    pending: State<'_, PendingTotpEnrollment>,
+    totp_code: Option<String>,
+) -> Result<Value, String> {
+    if let Ok(mut token) = pending.google_enrollment_token.lock() {
+        *token = None;
+    }
+    let result = async {
+        if totp_code
+            .as_ref()
+            .is_some_and(|code| code.len() != 6 || !code.bytes().all(|byte| byte.is_ascii_digit()))
+        {
+            return Err(LicenseError::InvalidInput);
+        }
+        let device_id = machine_guid().and_then(|identity| derive_device_id(&identity))?;
+        let client_id = google_desktop_client_id()?;
+        let client = http_client()?;
+        let origin = url::Url::parse(&configured_worker_origin()?)
+            .map_err(|_| LicenseError::InvalidInput)?;
+        let worker_session = crate::google_login::desktop_google_login(
+            &client,
+            &origin,
+            &client_id,
+            &device_id,
+            totp_code.as_deref(),
+        )
+        .await
+        .map_err(|error| match error {
+            crate::google_login::GoogleLoginError::WorkerUnavailable
+            | crate::google_login::GoogleLoginError::GoogleTokenUnavailable
+            | crate::google_login::GoogleLoginError::CallbackUnavailable
+            | crate::google_login::GoogleLoginError::BrowserUnavailable => {
+                LicenseError::WorkerUnavailable
+            }
+            crate::google_login::GoogleLoginError::ConfigurationUnavailable
+            | crate::google_login::GoogleLoginError::InvalidCallback
+            | crate::google_login::GoogleLoginError::InvalidWorkerResponse => {
+                LicenseError::InvalidLicense
+            }
+        })?;
+        let data = worker_session
+            .get("data")
+            .ok_or(LicenseError::InvalidLicense)?;
+        if data.get("totp_state").and_then(Value::as_str) == Some("ENROLLMENT_REQUIRED") {
+            let token = data
+                .get("enrollment_token")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 256)
+                .ok_or(LicenseError::InvalidLicense)?;
+            let uri = data
+                .get("otpauth_uri")
+                .and_then(Value::as_str)
+                .filter(|value| valid_totp_uri(value))
+                .ok_or(LicenseError::InvalidLicense)?;
+            *pending
+                .google_enrollment_token
+                .lock()
+                .map_err(|_| LicenseError::InvalidInput)? = Some(token.to_owned());
+            return Ok(
+                json!({ "state": "TOTP_ENROLLMENT_REQUIRED", "otpauthUri": uri,
+                "features": {}, "unlocked": false, "readOnly": true }),
+            );
+        }
+        let session_token = data
+            .get("session_token")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= 8192)
+            .ok_or(LicenseError::AuthenticationDenied)?;
+        let principal_id = data
+            .get("principal_id")
+            .and_then(Value::as_str)
+            .filter(|value| valid_principal_id(value))
+            .ok_or(LicenseError::AuthenticationDenied)?;
+        let snapshot = data
+            .get("license_snapshot")
+            .filter(|value| value.is_object())
+            .ok_or(LicenseError::InvalidLicense)?;
+        if !matches!(
+            data.get("totp_state").and_then(Value::as_str),
+            Some("ENROLLED" | "OPTIONAL")
+        ) {
+            return Err(LicenseError::AuthenticationDenied);
+        }
+        let now_ns = current_utc_ns()?;
+        let response = json!({ "schema_version": 1, "entitlement_state": "VERIFIED_ONLINE",
+            "observed_at_ns": now_ns.to_string(), "license": snapshot });
+        let view = verified_online_view(&response, &device_id, now_ns)?;
+        cache_worker_snapshot(
+            &app,
+            &device_id,
+            session_token,
+            principal_id,
+            now_ns,
+            &response,
+        )?;
+        emit_startup_unlock(&app, &view, principal_id)
+    }
+    .await;
+    result.map_err(|error: LicenseError| error.code().to_string())
+}
+
+#[tauri::command]
+pub async fn license_google_enroll_totp(
+    app: AppHandle,
+    pending: State<'_, PendingTotpEnrollment>,
+    code: String,
+) -> Result<Value, String> {
+    if code.len() != 6 || !code.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(LicenseError::InvalidInput.code().to_string());
+    }
+    let token = pending
+        .google_enrollment_token
+        .lock()
+        .map_err(|_| LicenseError::InvalidInput.code().to_string())?
+        .clone()
+        .ok_or_else(|| LicenseError::AuthenticationDenied.code().to_string())?;
+    let result = async {
+        let device_id = machine_guid().and_then(|identity| derive_device_id(&identity))?;
+        let response = http_client()?
+            .post(worker_url("/v1/auth/google/desktop/totp/confirm")?)
+            .json(&json!({ "device_id": device_id, "enrollment_token": token, "code": code }))
+            .send()
+            .await
+            .map_err(|_| LicenseError::WorkerUnavailable)?;
+        let (status, bytes) = bounded_response_body(response).await?;
+        let body = decode_worker_json(status, &bytes)?;
+        if body.pointer("data.totp_state").and_then(Value::as_str) != Some("ENROLLED") {
+            return Err(LicenseError::AuthenticationDenied);
+        }
+        *pending
+            .google_enrollment_token
+            .lock()
+            .map_err(|_| LicenseError::InvalidInput)? = None;
+        let _ = app;
+        Ok(json!({ "totp_state": "ENROLLED" }))
     }
     .await;
     result.map_err(|error: LicenseError| error.code().to_string())
@@ -754,17 +995,27 @@ pub async fn license_status(app: AppHandle) -> Result<Value, String> {
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty() && value.len() <= 8192)
             .ok_or(LicenseError::CacheUnavailable)?;
+        let principal_id = cached
+            .get("principal_id")
+            .and_then(Value::as_str)
+            .filter(|value| valid_principal_id(value))
+            .ok_or(LicenseError::CacheUnavailable)?
+            .to_owned();
         match fetch_license(token).await {
             Ok(response) => {
+                if !introspection_subject_matches(&response, &principal_id) {
+                    return Err(LicenseError::AuthenticationDenied);
+                }
                 let now_ns = current_utc_ns()?;
                 let view = verified_online_view(&response, &device_id, now_ns)?;
-                cache_worker_snapshot(&app, &device_id, token, now_ns, &response)?;
-                emit_startup_unlock(&app, &view)
+                cache_worker_snapshot(&app, &device_id, token, &principal_id, now_ns, &response)?;
+                emit_startup_unlock(&app, &view, &principal_id)
             }
             Err(LicenseError::WorkerUnavailable) => {
-                let view = offline_view_from_cache(&cached, &device_id, current_utc_ns()?)?;
+                let (view, principal_id) =
+                    offline_view_from_cache(&cached, &device_id, current_utc_ns()?)?;
                 if startup_unlock_allowed(&view) {
-                    emit_startup_unlock(&app, &view)
+                    emit_startup_unlock(&app, &view, &principal_id)
                 } else {
                     Ok(view.json())
                 }
@@ -810,6 +1061,9 @@ pub async fn license_sign_out(
             let _ = client.delete(url).bearer_auth(token).send().await;
         }
     }
+    // A sidecar principal is immutable for its process lifetime. Exit so a
+    // subsequent sign-in starts a new sidecar bound to the new session.
+    app.exit(0);
     Ok(UnlockView::locked().json())
 }
 
@@ -1017,11 +1271,13 @@ fn unprotect_for_current_user(_: &[u8]) -> Result<Vec<u8>, LicenseError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clear_local_license_cache, consume_startup_proof, derive_device_id, keychain_delete_result,
-        resolve_unlock, startup_unlock_allowed, valid_totp_uri, validate_snapshot, LicenseError,
-        StartupUnlockProof, GRACE_SECONDS, GRACE_UNLOCK_ENABLED,
+        clear_local_license_cache, consume_startup_proof, derive_device_id, enabled_feature_csv,
+        entitlement_digest, hex, introspection_subject_matches, keychain_delete_result,
+        resolve_unlock, startup_unlock_allowed, valid_principal_id, valid_totp_uri,
+        validate_snapshot, LicenseError, StartupUnlockProof, GRACE_SECONDS, GRACE_UNLOCK_ENABLED,
     };
     use serde_json::json;
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
 
     #[test]
@@ -1070,7 +1326,7 @@ mod tests {
     #[test]
     fn worker_origin_config_is_one_exact_https_origin() {
         let origin = super::configured_worker_origin().expect("valid build placeholder");
-        assert_eq!(origin, "https://leviathan-licensing-worker.ocean824.workers.dev");
+        assert_eq!(origin, "https://license.invalid");
     }
 
     #[test]
@@ -1197,6 +1453,8 @@ mod tests {
             state: "VERIFIED_ONLINE",
             read_only: false,
             features: BTreeMap::from([("PAPER".to_owned(), true)]),
+            principal_id: "user-1".to_owned(),
+            entitlement_digest: "a".repeat(64),
         });
         let valid_features = BTreeMap::from([("PAPER".to_owned(), true)]);
         let forged_features = BTreeMap::from([("LIVE".to_owned(), true)]);
@@ -1205,13 +1463,33 @@ mod tests {
             &mut proof,
             "GRACE",
             true,
-            &valid_features
+            &valid_features,
+            "user-1",
+            &"a".repeat(64),
         ));
         assert!(!consume_startup_proof(
             &mut proof,
             "VERIFIED_ONLINE",
             false,
-            &forged_features
+            &forged_features,
+            "user-1",
+            &"a".repeat(64),
+        ));
+        assert!(!consume_startup_proof(
+            &mut proof,
+            "VERIFIED_ONLINE",
+            false,
+            &valid_features,
+            "other-user",
+            &"a".repeat(64),
+        ));
+        assert!(!consume_startup_proof(
+            &mut proof,
+            "VERIFIED_ONLINE",
+            false,
+            &valid_features,
+            "user-1",
+            &"b".repeat(64),
         ));
         assert_eq!(
             proof,
@@ -1219,20 +1497,52 @@ mod tests {
                 state: "VERIFIED_ONLINE",
                 read_only: false,
                 features: valid_features.clone(),
+                principal_id: "user-1".to_owned(),
+                entitlement_digest: "a".repeat(64),
             })
         );
         assert!(consume_startup_proof(
             &mut proof,
             "VERIFIED_ONLINE",
             false,
-            &valid_features
+            &valid_features,
+            "user-1",
+            &"a".repeat(64),
         ));
         assert!(proof.is_none());
         assert!(!consume_startup_proof(
             &mut proof,
             "VERIFIED_ONLINE",
             false,
-            &valid_features
+            &valid_features,
+            "user-1",
+            &"a".repeat(64),
+        ));
+    }
+
+    #[test]
+    fn shell_identity_uses_a_closed_subject_grammar_and_sorted_entitlement_digest() {
+        assert!(valid_principal_id("user-1:google"));
+        assert!(!valid_principal_id(""));
+        assert!(!valid_principal_id(" user-1"));
+        assert!(!valid_principal_id("user/1"));
+        let features = BTreeMap::from([
+            ("paper_trading".to_owned(), true),
+            ("live_trading".to_owned(), true),
+            ("charts".to_owned(), false),
+        ]);
+        assert_eq!(enabled_feature_csv(&features), "live_trading,paper_trading");
+        assert_eq!(
+            entitlement_digest(&features),
+            hex(&Sha256::digest(b"live_trading,paper_trading"))
+        );
+        assert!(introspection_subject_matches(
+            &json!({"subject_id": "user-1"}),
+            "user-1"
+        ));
+        assert!(!introspection_subject_matches(
+            &json!({"subject_id": "other-user"}),
+            "user-1"
         ));
     }
 }

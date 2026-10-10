@@ -37,16 +37,16 @@ def test_risk_and_omega_share_durable_authority_across_lifespans() -> None:
         assert status["halted"] is True
         assert status["active_halts"] == ["omega_kill_signal", "operator_hold"]
         response = client.post("/risk/halt/lift", json={"reason": "operator_hold"})
-        assert response.status_code == 200
-        assert response.json()["active_halts"] == ["omega_kill_signal"]
-        absent = client.post("/risk/halt/lift", json={"reason": "operator_hold"})
-        assert absent.status_code == 409
-        assert absent.json() == {"detail": "HALT_REASON_NOT_ACTIVE"}
+        assert response.status_code == 401  # No signed-in desktop principal is configured.
+        assert client.get("/risk/status").json()["active_halts"] == [
+            "omega_kill_signal",
+            "operator_hold",
+        ]
     _configure_omega_test_adapter()
     with TestClient(app) as client:
         assert client.get(
             "/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")
-        ).json()["active_halts"] == ["omega_kill_signal"]
+        ).json()["active_halts"] == ["omega_kill_signal", "operator_hold"]
 
 
 def test_omega_kill_ignores_forwarded_certificate_header() -> None:
@@ -206,7 +206,6 @@ def test_directory_or_journal_denial_blocks_api_before_requests(
     ("endpoint", "seed_reason"),
     [
         ("/risk/halt", None),
-        ("/risk/halt/lift", "operator_hold"),
         ("/omega/kill", None),
     ],
 )

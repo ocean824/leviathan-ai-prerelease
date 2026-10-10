@@ -449,6 +449,8 @@ fn supervise(
     capability: String,
     license_state: &'static str,
     license_features: String,
+    session_principal_id: String,
+    session_entitlement_digest: String,
     profile_evidence: ProfileEvidence,
     startup_gate: mpsc::Receiver<()>,
 ) {
@@ -480,6 +482,11 @@ fn supervise(
             .env("LEVIATHAN_DESKTOP_CAPABILITY", &capability)
             .env("LEVIATHAN_LICENSE_STATE", license_state)
             .env("LEVIATHAN_LICENSE_FEATURES", &license_features)
+            .env("LEVIATHAN_SESSION_PRINCIPAL", &session_principal_id)
+            .env(
+                "LEVIATHAN_SESSION_ENTITLEMENT_SHA256",
+                &session_entitlement_digest,
+            )
             .env(
                 "LEVIATHAN_DESKTOP_SHUTDOWN_FILE",
                 runtime
@@ -649,6 +656,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             opener::open_external_url,
             license::license_sign_in,
+            license::license_google_sign_in,
+            license::license_google_enroll_totp,
             license::license_enroll_totp,
             license::license_status,
             license::license_sign_out,
@@ -694,6 +703,7 @@ fn main() {
             let capability = new_capability();
             let bridge = include_str!("bridge.js").replace("__CAPABILITY__", &capability);
             let launch_once = Arc::new(AtomicBool::new(false));
+            let active_session_binding = Arc::new(Mutex::new(None::<(String, String)>));
             let listener_app = app.handle().clone();
             let listener_runtime = setup_runtime.clone();
             let listener_executable = executable.clone();
@@ -702,6 +712,7 @@ fn main() {
             let listener_profile = profile_evidence.clone();
             let listener_receiver = startup_receiver.clone();
             let listener_launch_once = launch_once.clone();
+            let listener_session_binding = active_session_binding.clone();
             let listener_sender = startup_sender.clone();
             WebviewWindowBuilder::new(app, "signin", WebviewUrl::App("signin.html".into()))
                 .title("Leviathan AI — Sign in")
@@ -719,6 +730,22 @@ fn main() {
                     .get("readOnly")
                     .and_then(serde_json::Value::as_bool)
                     == Some(true);
+                let Some(principal_id) = payload
+                    .get("principalId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| license::valid_principal_id(value))
+                    .map(str::to_owned)
+                else {
+                    return;
+                };
+                let Some(entitlement_digest) = payload
+                    .get("entitlementDigest")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                    .map(str::to_owned)
+                else {
+                    return;
+                };
                 let Some(features) = payload
                     .get("features")
                     .and_then(serde_json::Value::as_object)
@@ -747,9 +774,32 @@ fn main() {
                         state,
                         read_only,
                         &features,
+                        &principal_id,
+                        &entitlement_digest,
                     )
-                    || listener_launch_once.swap(true, Ordering::SeqCst)
                 {
+                    return;
+                }
+                if listener_launch_once.swap(true, Ordering::SeqCst) {
+                    let changed = listener_session_binding
+                        .lock()
+                        .map(|binding| {
+                            binding.as_ref().is_none_or(|(active_principal, active_digest)| {
+                                active_principal != &principal_id
+                                    || active_digest != &entitlement_digest
+                            })
+                        })
+                        .unwrap_or(true);
+                    if changed {
+                        // The sidecar principal is immutable for its process lifetime.
+                        listener_app.exit(0);
+                    }
+                    return;
+                }
+                if let Ok(mut binding) = listener_session_binding.lock() {
+                    *binding = Some((principal_id.clone(), entitlement_digest.clone()));
+                } else {
+                    listener_app.exit(1);
                     return;
                 }
                 let sidecar_license_state = match state {
@@ -757,11 +807,7 @@ fn main() {
                     "GRACE" => "GRACE_READ_ONLY",
                     _ => return,
                 };
-                let sidecar_license_features = features
-                    .iter()
-                    .filter_map(|(name, enabled)| enabled.then_some(name.as_str()))
-                    .collect::<Vec<_>>()
-                    .join(",");
+                let sidecar_license_features = license::enabled_feature_csv(&features);
                 let Some(startup_receiver) = listener_receiver
                     .lock()
                     .ok()
@@ -794,6 +840,8 @@ fn main() {
                 let supervise_capability = listener_capability.clone();
                 let supervise_profile = listener_profile.clone();
                 let supervise_features = sidecar_license_features;
+                let supervise_principal_id = principal_id;
+                let supervise_entitlement_digest = entitlement_digest;
                 thread::spawn(move || {
                     supervise(
                         supervise_app,
@@ -803,6 +851,8 @@ fn main() {
                         supervise_capability,
                         sidecar_license_state,
                         supervise_features,
+                        supervise_principal_id,
+                        supervise_entitlement_digest,
                         supervise_profile,
                         startup_receiver,
                     );

@@ -178,7 +178,11 @@ class _AsyncOpenOrders:
 
 def _trusted_principal() -> object:
     claims = PrincipalV1(
-        principal_id="owner-1", project_id="org-1", roles=("owner",), env="production"
+        principal_id="owner-1",
+        project_id="org-1",
+        roles=("owner",),
+        env="production",
+        device_id="device-1",
     )
     return TrustedPrincipalAdapterV1.from_verified_claims(claims, verifier_marker=_VERIFIER_MARKER)
 

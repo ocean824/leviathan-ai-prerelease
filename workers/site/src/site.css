@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; --bg: #f7f8fa; --panel: #fff; --ink: #17202b; --muted: #536273; --line: #d8dee6; --accent: #116b5e; --focus: #a44b00; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+@media (prefers-color-scheme: dark) { :root { --bg: #10161b; --panel: #182128; --ink: #edf3f5; --muted: #b2c0c8; --line: #34434c; --accent: #7bd6bb; --focus: #ffbd75; } }
+* { box-sizing: border-box; } body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.65; }
+a { color: var(--accent); text-underline-offset: .18em; } a:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 8px; z-index: 2; background: var(--panel); padding: 8px; }
+header, main, footer { width: min(100% - 32px, 900px); margin-inline: auto; } header { padding: 24px 0 12px; border-bottom: 1px solid var(--line); }
+.brand { font-size: 1.1rem; font-weight: 750; text-decoration: none; color: var(--ink); } nav ul { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; padding: 12px 0 0; margin: 0; } nav a { font-size: .94rem; }
+main { min-height: 62vh; padding: 38px 0 64px; } h1 { max-width: 18ch; font-size: clamp(2rem, 5vw, 3.3rem); line-height: 1.12; letter-spacing: -.035em; } h2 { margin-top: 2.2rem; font-size: 1.3rem; } p, li { max-width: 76ch; } .lede { color: var(--muted); font-size: 1.12rem; }
+.notice { padding: 14px 16px; border-left: 4px solid var(--accent); background: var(--panel); } .fact-missing { border: 1px dashed #a44b00; padding: 2px 5px; color: #873b00; background: #fff4e8; } @media (prefers-color-scheme: dark) { .fact-missing { color: #ffd19d; background: #35291d; } }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 14px; margin-top: 28px; } .card { padding: 16px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; } footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); } footer p { margin-bottom: 8px; } small { color: var(--muted); }

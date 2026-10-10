@@ -587,6 +587,7 @@ class DarkLensResultV1(_FrozenV1):
     bucket_counts: tuple[BucketCountV1, ...] = ()
     counts_low: int | None = None
     total_dp_trades: int = 0
+    latest_contributing_event_ns: int | None = None
     total_notional: Decimal | None = None
     total_notional_ranked: Decimal | None = None
     vwap_basis: str = "ALL_ELIGIBLE_PRINTS"
@@ -617,6 +618,7 @@ class DarkLensResultV1(_FrozenV1):
             "asof_ns",
             "observed_lag_ns",
             "earliest_usable_ns",
+            "latest_contributing_event_ns",
         ):
             _timestamp(getattr(self, name), name)
         for name in ("revision", "quantile_count", "total_dp_trades"):

@@ -187,6 +187,8 @@ class ChatToolRegistryV1(_StrictModel):
             "genomes.list",
             "knowledge.archive.search",
             "connections.status.read",
+            "connections.credentials.status.read",
+            "connections.credentials.test",
             "data_sources.status.read",
             "risk.status.read",
             "ea.templates.list",
@@ -233,6 +235,12 @@ class _PipelineAttemptInput(_StrictModel):
 
 class _JournalInput(_StrictModel):
     limit: StrictInt = Field(default=50, ge=1, le=500)
+
+
+class _CredentialTestInput(_StrictModel):
+    provider: StrictStr = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    environment: Literal["DEVELOPMENT", "PAPER", "DEMO", "LIVE"]
+    profile_id: Literal["default"]
 
 
 class _PreferencesPutInput(_StrictModel):
@@ -550,6 +558,34 @@ _REGISTRY: tuple[ChatToolRegistryEntryV1, ...] = (
         mutating=False,
     ),
     ChatToolRegistryEntryV1(
+        tool_id="connections.credentials.status.read",
+        route_kind="app_route",
+        capability="read",
+        route="credential_connections",
+        route_method="GET",
+        route_path="/api/connections/credentials",
+        ui_route="/connections",
+        walkthrough_steps=("Open Connections", "Review credential status without viewing values"),
+        input_fields=(),
+        output_schema="CredentialStatusListV1",
+        confirmation_parity="none",
+        mutating=False,
+    ),
+    ChatToolRegistryEntryV1(
+        tool_id="connections.credentials.test",
+        route_kind="app_route",
+        capability="read",
+        route="credential_connections",
+        route_method="POST",
+        route_path="/api/connections/credentials/{provider}/{environment}/{profile_id}/test",
+        ui_route="/connections",
+        walkthrough_steps=("Open Connections", "Test the selected credential connection"),
+        input_fields=("provider", "environment", "profile_id"),
+        output_schema="CredentialTestResultV1",
+        confirmation_parity="none",
+        mutating=False,
+    ),
+    ChatToolRegistryEntryV1(
         tool_id="data_sources.status.read",
         route_kind="app_route",
         capability="read",
@@ -754,6 +790,8 @@ _TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "genomes.list": _EmptyToolInput,
     "knowledge.archive.search": _EmptyToolInput,
     "connections.status.read": _EmptyToolInput,
+    "connections.credentials.status.read": _EmptyToolInput,
+    "connections.credentials.test": _CredentialTestInput,
     "data_sources.status.read": _EmptyToolInput,
     "risk.status.read": _EmptyToolInput,
     "ea.templates.list": _EmptyToolInput,

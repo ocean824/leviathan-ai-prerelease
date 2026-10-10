@@ -13,6 +13,11 @@ workers_dev = true
 # LICENSE_VERIFY_PUBLIC_KEY_JWK (var, public ES256 JWK)
 # INTERNAL_SERVICE_TOKEN (secret; service-binding internal device verification only)
 # ADMIN_TOTP_ENCRYPTION_KEY (secret; base64 encoding of exactly 32 random bytes)
+# GOOGLE_DESKTOP_CLIENT_ID (var; public Desktop app OAuth client ID)
+# GOOGLE_WEB_CLIENT_ID (var; public Web application OAuth client ID)
+# GOOGLE_WEB_CLIENT_SECRET (secret; provide with `wrangler secret put`, never here)
+# GOOGLE_OAUTH_STATE_ENCRYPTION_KEY (secret; base64 encoding of exactly 32 random bytes)
+# GOOGLE_WEB_SUCCESS_URL (var; fixed HTTPS destination after Worker callback)
 
 [vars]
 STRIPE_MODE = "test"

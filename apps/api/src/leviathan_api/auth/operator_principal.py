@@ -130,14 +130,26 @@ def _header_values(scope: Scope, name: bytes) -> list[bytes]:
 class OperatorPrincipalMiddleware:
     """Pure ASGI middleware; see the module docstring for the evidence it verifies."""
 
-    __slots__ = ("_app", "_capability", "_host", "_origin", "_profile")
+    __slots__ = ("_app", "_capability", "_features", "_host", "_origin", "_profile")
 
-    def __init__(self, app: ASGIApp, *, capability: str, port: int, profile: object) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        capability: str,
+        port: int,
+        profile: object | None,
+        features: frozenset[str] = frozenset(),
+        allow_anonymous: bool = False,
+    ) -> None:
         if type(capability) is not str or _CAPABILITY.fullmatch(capability) is None:
             raise OperatorAuthError("INVALID_CAPABILITY")
         if type(port) is not int or not 1 <= port <= 65535:
             raise OperatorAuthError("INVALID_PORT")
-        self._profile = require_local_operator_profile(profile)
+        if profile is None and not allow_anonymous:
+            raise OperatorAuthError("INVALID_PROFILE")
+        self._profile = None if profile is None else require_local_operator_profile(profile)
+        self._features = features if self._profile is not None else frozenset()
         self._app = app
         self._capability = capability.encode("ascii")
         self._host = f"127.0.0.1:{port}".encode("ascii")
@@ -236,6 +248,8 @@ class OperatorPrincipalMiddleware:
         return self._issue()
 
     def _issue(self) -> TrustedPrincipalV1 | None:
+        if self._profile is None:
+            return None
         try:
             profile = require_local_operator_profile(self._profile)
             claims = PrincipalV1(
@@ -259,6 +273,8 @@ class OperatorPrincipalMiddleware:
             state.pop("trusted_principal", None)  # never inherit one from anywhere else
             state.pop("trusted_operator_profile", None)
             state.pop("trusted_operator_origin", None)
+            state.pop("trusted_instance_principal_id", None)
+            state.pop("trusted_instance_features", None)
             if self._evidence_valid(scope):
                 principal = self._issue()
                 if principal is not None:
@@ -267,11 +283,15 @@ class OperatorPrincipalMiddleware:
                         self._profile
                     )
                     state["trusted_operator_origin"] = self._origin.decode("ascii")
+                    state["trusted_instance_principal_id"] = principal.principal_id
+                    state["trusted_instance_features"] = self._features
         elif scope["type"] == "websocket":
             state = scope.setdefault("state", {})
             state.pop("trusted_principal", None)
             state.pop("trusted_operator_profile", None)
             state.pop("trusted_operator_origin", None)
+            state.pop("trusted_instance_principal_id", None)
+            state.pop("trusted_instance_features", None)
             state.pop("chart_ticket_authenticated", None)
             host_is_valid = _header_values(scope, b"host") == [self._host]
             origin_failure = self._origin_host_failure_code(scope)
@@ -309,7 +329,10 @@ class OperatorPrincipalMiddleware:
                 await send({"type": "websocket.close", "code": code})
                 return
             state["trusted_principal"] = principal
-            state["trusted_operator_profile"] = require_local_operator_profile(self._profile)
+            if self._profile is not None:
+                state["trusted_operator_profile"] = require_local_operator_profile(self._profile)
+                state["trusted_instance_principal_id"] = principal.principal_id
+                state["trusted_instance_features"] = self._features
             state["trusted_operator_origin"] = self._origin.decode("ascii")
             if ticket_authenticated:
                 state["chart_ticket_authenticated"] = True

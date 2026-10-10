@@ -12,6 +12,7 @@ import heapq
 import logging
 import os
 import re
+import stat
 import threading
 import time
 from collections.abc import Coroutine, Sequence
@@ -207,8 +208,27 @@ class _ExclusiveLedgerLock:
         if database is None:
             return
         path = Path(database).resolve()
-        self._file = open(path.with_name(path.name + ".oms.lock"), "a+b")  # noqa: SIM115
+        lock_path = path.with_name(path.name + ".oms.lock")
         try:
+            # O_NOFOLLOW closes the final-component race on POSIX. Windows
+            # rejects known reparse points before open and verifies the handle.
+            if os.name == "nt":
+                try:
+                    link_info = os.lstat(lock_path)
+                except FileNotFoundError:
+                    link_info = None
+                if link_info is not None and (
+                    stat.S_ISLNK(link_info.st_mode)
+                    or getattr(link_info, "st_file_attributes", 0) & 0x400
+                ):
+                    raise OSError("ledger lock is a reparse point")
+            flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(lock_path, flags, 0o600)
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                os.close(descriptor)
+                raise OSError("ledger lock is not a regular file")
+            self._file = os.fdopen(descriptor, "r+b", buffering=0)
             self._file.seek(0)
             if not self._file.read(1):
                 self._file.seek(0)
@@ -229,7 +249,8 @@ class _ExclusiveLedgerLock:
                 fcntl = importlib.import_module("fcntl")
                 fcntl.flock(self._file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            self._file.close()
+            if self._file is not None:
+                self._file.close()
             raise OMSConflict("OMS_LEDGER_LOCKED") from None
 
     def close(self) -> None:

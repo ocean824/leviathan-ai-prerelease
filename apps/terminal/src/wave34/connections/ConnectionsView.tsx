@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorPanel, evaluatePanelState, freshPanel, OPERATOR_STALE_MS, unavailablePanel, type PanelState } from "../../state/panelState";
 import { connectionsApi } from "./api";
+import { CredentialConnectionsPanel } from "./CredentialConnectionsPanel";
 import {
   createFailClosedExternalUrlOpener,
   formatExpiry,
@@ -267,5 +268,6 @@ export function ConnectionsView({
         })}
       </div>}
     <button type="button" onClick={() => setReloadCount((count) => count + 1)}>Refresh connections</button>
+    <CredentialConnectionsPanel />
   </section>;
 }

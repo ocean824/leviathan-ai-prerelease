@@ -4,9 +4,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from leviathan_api import main as api_main
+from leviathan_api.auth import make_local_operator_profile
 from leviathan_api.settings import get_settings
 from leviathan_api.state import build_app_state
 from leviathan_core.execution.order_models import LedgerIntegrityKey
@@ -58,3 +60,42 @@ def client() -> Iterator[TestClient]:
     """A fresh, provisioned AppState under the real lifespan for each consumer."""
     with TestClient(api_main.app) as active:
         yield active
+
+
+@pytest.fixture
+def entitled_desktop_lift_client() -> Iterator[tuple[TestClient, dict[str, str]]]:
+    """Explicit trusted, entitled non-admin desktop identity for HALT-lift tests."""
+    capability = "a" * 64
+    port = 46221
+    profile = make_local_operator_profile(
+        principal_id="pytest-paid-user",
+        project_id="leviathan-ai",
+        env="paper",
+        roles=("user",),
+    )
+    app = api_main.create_app(
+        desktop_operator_capability=capability,
+        desktop_operator_port=port,
+        desktop_operator_profile=profile,
+        desktop_operator_features=frozenset({"live_trading"}),
+    )
+
+    @app.middleware("http")
+    async def _inject_synthetic_omega_tls(request: Request, call_next):
+        if request.headers.get("x-test-trusted-tls") == "synthetic":
+            extensions = dict(request.scope.get("extensions", {}))
+            extensions["tls"] = {
+                "client_cert_der": (
+                    b"synthetic OMEGA TLS certificate DER bytes for legacy route tests"
+                )
+            }
+            request.scope["extensions"] = extensions
+        return await call_next(request)
+
+    headers = {
+        "Host": f"127.0.0.1:{port}",
+        "Origin": f"http://127.0.0.1:{port}",
+        "X-Leviathan-Capability": capability,
+    }
+    with TestClient(app) as active:
+        yield active, headers

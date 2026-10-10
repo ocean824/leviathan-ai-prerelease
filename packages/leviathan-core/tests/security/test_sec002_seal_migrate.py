@@ -41,15 +41,29 @@ from leviathan_core.security.authz_models import (
 from leviathan_core.security.principal_verifier import PrincipalVerifier
 
 AT = datetime(2026, 9, 30, 12, tzinfo=UTC)
-_FIELDS = ("principal_id", "project_id", "roles", "env", "venue", "portfolio", "strategy",
-           "break_glass")
+_FIELDS = (
+    "principal_id",
+    "project_id",
+    "roles",
+    "env",
+    "venue",
+    "portfolio",
+    "strategy",
+    "break_glass",
+    "device_id",
+)
 _UNIFORM_DENY = AuthorizationExplanationV1(None, EffectV1.DENY, ReasonCodeV1.NOT_AUTHORIZED)
 
 
 def _claims(**changes: object) -> PrincipalV1:
     claims = PrincipalV1(
-        principal_id="operator.1", project_id="leviathan-ai", roles=("risk.admin",),
-        env="test", venue="XNYS", portfolio="book.1", strategy="alpha.1",
+        principal_id="operator.1",
+        project_id="leviathan-ai",
+        roles=("risk.admin",),
+        env="test",
+        venue="XNYS",
+        portfolio="book.1",
+        strategy="alpha.1",
     )
     return replace(claims, **changes)
 
@@ -71,10 +85,17 @@ def _hand_built(**changes: object) -> TrustedPrincipalV1:
 
 def _inputs() -> tuple[ActionV1, ResourceV1, AuthorizationContextV1, AuthorizationPolicyV1]:
     rule = PolicyRuleV1(
-        rule_id="allow.1", effect=EffectV1.ALLOW, roles=("risk.admin",),
-        actions=("research.read",), resources=("research.private",), env="test",
-        not_before=AT - timedelta(minutes=1), not_after=AT + timedelta(minutes=1),
-        venue="XNYS", portfolio="book.1", strategy="alpha.1",
+        rule_id="allow.1",
+        effect=EffectV1.ALLOW,
+        roles=("risk.admin",),
+        actions=("research.read",),
+        resources=("research.private",),
+        env="test",
+        not_before=AT - timedelta(minutes=1),
+        not_after=AT + timedelta(minutes=1),
+        venue="XNYS",
+        portfolio="book.1",
+        strategy="alpha.1",
     )
     return (
         ActionV1("research.read"),
@@ -195,8 +216,13 @@ def test_issuers_are_module_private_and_unforgeable() -> None:
         with pytest.raises(SealError) as duplicate:
             Issuer(tag)
         assert duplicate.value.code == "SEAL_DUPLICATE_TAG"
-        forged = _hand_built() if tag == TRUSTED_PRINCIPAL_TAG else AuthorizationDecisionV1(
-            AuthorizationExplanationV1(None, EffectV1.ALLOW, ReasonCodeV1.AUTHORIZED))
+        forged = (
+            _hand_built()
+            if tag == TRUSTED_PRINCIPAL_TAG
+            else AuthorizationDecisionV1(
+                AuthorizationExplanationV1(None, EffectV1.ALLOW, ReasonCodeV1.AUTHORIZED)
+            )
+        )
         with pytest.raises(SealError) as impostor:
             Issuer.issue(types.SimpleNamespace(tag=tag), forged)  # type: ignore[arg-type]
         assert impostor.value.code == "SEAL_FORBIDDEN_OPERATION"

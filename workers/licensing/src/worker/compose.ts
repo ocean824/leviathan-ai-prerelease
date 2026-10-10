@@ -8,6 +8,7 @@ import { PerLicenseRateLimiterV1 } from "./rate_limit.js";
 import { createLicenseWorkerV1, type LicenseWorkerV1 } from "./handler.js";
 import type { AuthApiDependenciesV1 } from "../auth_api/routes.js";
 import { issueLicenseSnapshotV1 } from "../auth_api/routes.js";
+import type { GoogleAuthDependenciesV1 } from "../google_auth/routes.js";
 
 export interface HyperdriveBindingV1 { readonly connectionString: string; }
 export interface LicenseWorkerBindingsV1 {
@@ -27,6 +28,11 @@ export interface LicenseWorkerBindingsV1 {
   readonly LICENSE_VERIFY_PUBLIC_KEY_JWK?: string;
   readonly INTERNAL_SERVICE_TOKEN?: string;
   readonly ADMIN_TOTP_ENCRYPTION_KEY?: string;
+  readonly GOOGLE_DESKTOP_CLIENT_ID?: string;
+  readonly GOOGLE_WEB_CLIENT_ID?: string;
+  readonly GOOGLE_WEB_CLIENT_SECRET?: string;
+  readonly GOOGLE_OAUTH_STATE_ENCRYPTION_KEY?: string;
+  readonly GOOGLE_WEB_SUCCESS_URL?: string;
 }
 
 export interface ComposeOverridesV1 {
@@ -157,6 +163,23 @@ export async function composeLicenseWorkerV1(
       signing_key_id: env.LICENSE_SIGNING_KEY_ID!, user_session_ttl_s: env.USER_SESSION_TTL_S!,
       request_id: () => id("request"), now_utc_ns: utcNs,
     };
+    const signupApi = { clock, request_id: () => id("request"),
+      config: { stripe_mode: env.STRIPE_MODE ?? "test", stripe_price_id: env.STRIPE_PRICE_ID!,
+        stripe_webhook_secret: env.STRIPE_WEBHOOK_SECRET!,
+        success_url: env.SIGNUP_SUCCESS_URL!, cancel_url: env.SIGNUP_CANCEL_URL! },
+      pending_signups: signup.pending_signups, stripe: signup.stripe, webhook_transactions: signup.webhook_transactions };
+    const googleAuthApi: GoogleAuthDependenciesV1 | undefined = env.GOOGLE_DESKTOP_CLIENT_ID
+      && env.GOOGLE_WEB_CLIENT_ID && env.GOOGLE_WEB_CLIENT_SECRET
+      && env.GOOGLE_OAUTH_STATE_ENCRYPTION_KEY && env.GOOGLE_WEB_SUCCESS_URL
+      ? { driver, auth: authApi, signup: signupApi,
+        desktop_client_id: env.GOOGLE_DESKTOP_CLIENT_ID, web_client_id: env.GOOGLE_WEB_CLIENT_ID,
+        web_client_secret: env.GOOGLE_WEB_CLIENT_SECRET,
+        web_callback_uri: "https://leviathan-licensing-worker.ocean824.workers.dev/v1/auth/google/web/callback",
+        web_success_url: env.GOOGLE_WEB_SUCCESS_URL,
+        state_encryption_key: env.GOOGLE_OAUTH_STATE_ENCRYPTION_KEY,
+        fetcher: overrides.fetch ?? fetch, now_unix_seconds: clock.nowUnixSeconds,
+        now_utc_ns: utcNs, request_id: () => id("request") }
+      : undefined;
     const worker = createLicenseWorkerV1({
       principals: { async resolve(request) {
         const auth = request.headers.get("authorization") ?? "";
@@ -189,11 +212,8 @@ export async function composeLicenseWorkerV1(
       deadlines: { run: async (_operation, _timeout, invoke) => ({ status: "COMPLETED", value: await invoke(new AbortController().signal) }) },
       adminApi: admin,
       authApi,
-      signupApi: { clock, request_id: () => id("request"),
-        config: { stripe_mode: env.STRIPE_MODE ?? "test", stripe_price_id: env.STRIPE_PRICE_ID!,
-          stripe_webhook_secret: env.STRIPE_WEBHOOK_SECRET!,
-          success_url: env.SIGNUP_SUCCESS_URL!, cancel_url: env.SIGNUP_CANCEL_URL! },
-        pending_signups: signup.pending_signups, stripe: signup.stripe, webhook_transactions: signup.webhook_transactions },
+      googleAuthApi,
+      signupApi,
     });
     return Object.freeze({ fetch: async (request: Request) => {
       const url = new URL(request.url);

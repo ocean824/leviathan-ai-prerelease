@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "request_id": "95c8cf46-15bc-4509-9961-59d6dbe44144",
+  "operation_id": "cnn.fear_greed",
+  "template_version": "fixture-1",
+  "source_id": "api_anything.cnn.fear_greed",
+  "source_tier": 3,
+  "status": "OK",
+  "fetched_at": "2026-10-09T15:00:00Z",
+  "as_of": "2026-10-09T14:59:00Z",
+  "knowable_at": "2026-10-09T14:58:00Z",
+  "redistribution": false,
+  "records": [
+    {
+      "record_id": "cnn-fg-20261009",
+      "as_of": "2026-10-09T14:59:00Z",
+      "event_at": "2026-10-09T14:59:00Z",
+      "published_at": "2026-10-09T14:59:00Z",
+      "available_at": "2026-10-09T14:58:00Z",
+      "knowable_at": "2026-10-09T14:58:00Z",
+      "quality": "source_timestamped",
+      "values": {
+        "value": 42,
+        "label": "Fear",
+        "observed_at": "2026-10-09T14:59:00Z"
+      },
+      "redistribution": false
+    }
+  ]
+}

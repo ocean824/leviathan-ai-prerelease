@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import stat
 import struct
 import zlib
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Literal, Protocol
 
 from leviathan_core.agent_revision_hash import (
@@ -79,7 +81,17 @@ _SECRET_TOKEN = re.compile(r"\b(?:sk-[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16})\b")
 
 
 class ScopedNoOverwriteVaultPort(Protocol):
-    """One already-scoped vault; create is atomic and never overwrites."""
+    """Filesystem-scoped vault rooted at ``root``.
+
+    Implementations must open existing files without following links (for
+    example with ``O_NOFOLLOW`` on POSIX) and create files atomically without
+    following reparse points. The service checks the full virtual path before
+    every operation; the adapter must repeat the check at the open boundary
+    to close races between validation and I/O.
+    """
+
+    @property
+    def root(self) -> Path: ...
 
     @property
     def vault_id(self) -> str: ...
@@ -106,6 +118,77 @@ class StateChainVerifier(Protocol):
 
 def _hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _is_reparse_or_symlink(path: Path) -> bool:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        raise ScribeError("VAULT_UNAVAILABLE") from None
+    attributes = getattr(info, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(info.st_mode) or bool(attributes & reparse_flag)
+
+
+def _guard_scoped_vault_path(root: Path, scoped_path: str) -> None:
+    """Reject a scoped path that traverses a link or resolves outside root."""
+    if (
+        not isinstance(root, Path)
+        or not root.is_absolute()
+        or type(scoped_path) is not str
+        or not scoped_path.startswith(COUNCIL_VAULT_PREFIX)
+    ):
+        raise ScribeError("VAULT_UNAVAILABLE")
+    relative = scoped_path.lstrip("/").split("/")
+    if not relative or any(not _windows_component(part) for part in relative):
+        raise ScribeError("VAULT_UNAVAILABLE")
+
+    absolute_root = root.absolute()
+    cursor = Path(absolute_root.anchor)
+    for part in absolute_root.parts[1:]:
+        cursor = cursor / part
+        try:
+            if _is_reparse_or_symlink(cursor):
+                raise ScribeError("VAULT_UNAVAILABLE")
+            cursor.resolve(strict=True)
+        except ScribeError:
+            raise
+        except FileNotFoundError:
+            # A configured vault root may be created on the first write.
+            break
+        except OSError:
+            raise ScribeError("VAULT_UNAVAILABLE") from None
+
+    try:
+        canonical_root = absolute_root.resolve(strict=False)
+    except OSError:
+        raise ScribeError("VAULT_UNAVAILABLE") from None
+    target = absolute_root.joinpath(*relative)
+    cursor = absolute_root
+    for part in relative:
+        cursor = cursor / part
+        try:
+            if _is_reparse_or_symlink(cursor):
+                raise ScribeError("VAULT_UNAVAILABLE")
+            resolved = cursor.resolve(strict=True)
+        except ScribeError:
+            raise
+        except FileNotFoundError:
+            # Missing descendants are safe only after all existing ancestors
+            # have been checked for links and strict resolution escapes.
+            resolved = cursor.resolve(strict=False)
+        except OSError:
+            raise ScribeError("VAULT_UNAVAILABLE") from None
+        if not resolved.is_relative_to(canonical_root):
+            raise ScribeError("VAULT_UNAVAILABLE")
+    try:
+        resolved_target = target.resolve(strict=False)
+    except OSError:
+        raise ScribeError("VAULT_UNAVAILABLE") from None
+    if not resolved_target.is_relative_to(canonical_root):
+        raise ScribeError("VAULT_UNAVAILABLE")
 
 
 def _windows_component(value: str) -> bool:
@@ -460,14 +543,18 @@ class ScribePublicationService:
             raise ScribeError("PUBLICATION_INPUT_INVALID")
         vault_id = getattr(vault_port, "vault_id", None)
         prefix = getattr(vault_port, "allowed_prefix", None)
+        vault_root = getattr(vault_port, "root", None)
         if (
             type(vault_id) is not str
             or not _windows_component(vault_id)
             or type(prefix) is not str
             or prefix != COUNCIL_VAULT_PREFIX
+            or not isinstance(vault_root, Path)
+            or not vault_root.is_absolute()
         ):
             raise ScribeError("VAULT_SCOPE_INVALID")
         self._vault_port = vault_port
+        self._vault_root = vault_root
         self._vault_id = vault_id
         self._policy = authorization_policy
         self._clock = clock
@@ -678,6 +765,7 @@ class ScribePublicationService:
 
     def _read(self, path: str) -> bytes | None:
         try:
+            _guard_scoped_vault_path(self._vault_root, path)
             value = self._vault_port.read(path)
         except Exception:
             raise ScribeError("VAULT_UNAVAILABLE") from None
@@ -709,6 +797,7 @@ class ScribePublicationService:
         self, path: str, content: bytes
     ) -> tuple[Literal["ok", "offline", "invalid"], int]:
         for attempt in range(1, MAX_PORT_ATTEMPTS + 1):
+            _guard_scoped_vault_path(self._vault_root, path)
             try:
                 result = self._vault_port.create_no_overwrite(path, content)
             except Exception:

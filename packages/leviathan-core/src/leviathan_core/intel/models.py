@@ -36,6 +36,7 @@ AbstentionReason = Literal[
     "STALE_EVIDENCE",
     "UNKNOWN_FRESHNESS",
     "INSUFFICIENT_EVIDENCE",
+    "MISSING_DELTA",
     "KERNEL_REJECTED",
 ]
 
@@ -219,16 +220,35 @@ def evidence_from_payload(
 
 
 class _NormalizedMarketEvent(Protocol):
-    provider: str
-    dataset: str
-    venue: str
-    event_time_ns: int
-    source_time_ns: int | None
-    received_time_ns: int
-    native_sequence: int | None
-    provider_session_id: str | None
-    source_record_key: str | None
-    source_payload_sha256: str
+    @property
+    def provider(self) -> str: ...
+
+    @property
+    def dataset(self) -> str: ...
+
+    @property
+    def venue(self) -> str: ...
+
+    @property
+    def event_time_ns(self) -> int: ...
+
+    @property
+    def source_time_ns(self) -> int | None: ...
+
+    @property
+    def received_time_ns(self) -> int: ...
+
+    @property
+    def native_sequence(self) -> int | None: ...
+
+    @property
+    def provider_session_id(self) -> str | None: ...
+
+    @property
+    def source_record_key(self) -> str | None: ...
+
+    @property
+    def source_payload_sha256(self) -> str: ...
 
 
 def evidence_from_normalized_event(value: _NormalizedMarketEvent) -> EvidenceRefV1:

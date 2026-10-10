@@ -141,6 +141,44 @@ class ReconnectConfigV1(BaseModel):
         return self
 
 
+class PublicSourcesConfigV1(BaseModel):
+    """Non-secret public-source settings; FINRA credentials resolve from the vault."""
+
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    enabled: bool = False
+    sec_user_agent: str | None = None
+    sec_requests_per_second: int = Field(default=5, ge=1, le=10)
+    http_timeout_seconds: int = Field(default=8, ge=1, le=15)
+    http_max_retries: int = Field(default=2, ge=0, le=2)
+    finra_enabled: bool = False
+    cftc_enabled: bool = False
+    treasury_enabled: bool = False
+    nyfed_enabled: bool = False
+    treasury_auctions_enabled: bool = False
+    sec_ownership_filings_enabled: bool = False
+    house_ptr_enabled: bool = False
+    coinbase_derivatives_enabled: bool = False
+    finra_credentials_profile: str = "DEFAULT"
+
+    @field_validator("sec_user_agent")
+    @classmethod
+    def _sec_user_agent(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value.strip() or "@" not in value or _CREDENTIAL_SHAPE.search(value)
+        ):
+            raise ValueError("INVALID_CONFIG")
+        return value
+
+    @model_validator(mode="after")
+    def _enabled_user_agent(self) -> PublicSourcesConfigV1:
+        if self.enabled and self.sec_user_agent is None:
+            raise ValueError("INVALID_CONFIG")
+        if not re.fullmatch(r"[A-Z0-9._-]{1,64}", self.finra_credentials_profile):
+            raise ValueError("INVALID_CONFIG")
+        return self
+
+
 class MarketDataRuntimeConfigV1(BaseModel):
     """Configuration contains identifiers and limits only; never credential material."""
 
@@ -153,6 +191,7 @@ class MarketDataRuntimeConfigV1(BaseModel):
     massive: ProviderFeedConfigV1
     backfill: BackfillConfigV1
     reconnect: ReconnectConfigV1
+    public_sources: PublicSourcesConfigV1 = Field(default_factory=PublicSourcesConfigV1)
 
     @field_validator("project_id")
     @classmethod
@@ -333,6 +372,7 @@ __all__ = [
     "MarketDataRuntimeConfigResolutionV1",
     "MarketDataRuntimeConfigV1",
     "ProviderFeedConfigV1",
+    "PublicSourcesConfigV1",
     "ReconnectConfigV1",
     "load_market_data_runtime_config",
     "resolve_market_data_runtime_config",

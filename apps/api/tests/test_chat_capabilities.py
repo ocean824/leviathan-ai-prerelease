@@ -76,6 +76,8 @@ def test_permission_table_covers_each_discovery_action_family() -> None:
         "risk.limits.tighten",
         "risk.limits.relax",
         "connections.status.read",
+        "connections.credentials.status.read",
+        "connections.credentials.test",
         "connections.connect",
         "connections.test",
         "connections.cancel_connect",

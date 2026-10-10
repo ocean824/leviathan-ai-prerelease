@@ -108,9 +108,10 @@ def _omega_jwt(scope: str) -> str:
         ).encode("utf-8")
     )
     signing_input = f"{header}.{claims}".encode("ascii")
-    digest_info = bytes.fromhex("3031300d060960864801650304020105000420") + hashlib.sha256(
-        signing_input
-    ).digest()
+    digest_info = (
+        bytes.fromhex("3031300d060960864801650304020105000420")
+        + hashlib.sha256(signing_input).digest()
+    )
     width = (_OMEGA_MODULUS.bit_length() + 7) // 8
     padding_length = width - len(digest_info) - 3
     encoded = b"\x00\x01" + b"\xff" * padding_length + b"\x00" + digest_info
@@ -172,11 +173,14 @@ def test_risk_status_reports_policy(client: TestClient) -> None:
     assert body["policy"]["loss_streak_trigger"] == 3
 
 
-def test_halt_engage_and_lift_roundtrip(client: TestClient) -> None:
+def test_halt_engage_and_lift_roundtrip(entitled_desktop_lift_client) -> None:
+    client, headers = entitled_desktop_lift_client
     assert client.post("/risk/halt", json={"reason": "operator_hold"}).json()["halted"] is True
     status = client.get("/risk/status").json()
     assert "operator_hold" in status["active_halts"]
-    lifted = client.post("/risk/halt/lift", json={"reason": "operator_hold"}).json()
+    lifted = client.post(
+        "/risk/halt/lift", json={"reason": "operator_hold"}, headers=headers
+    ).json()
     assert lifted["halted"] is False
 
 
@@ -216,17 +220,15 @@ def test_pipeline_replay_decimal_fields_use_canonical_decimal_strings(
         assert canonical_str(parsed) == value, name
 
 
-def test_omega_heartbeat_and_kill_sync(client: TestClient) -> None:
-    hb = client.get(
-        "/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")
-    ).json()
+def test_omega_heartbeat_and_kill_sync(entitled_desktop_lift_client) -> None:
+    client, lift_headers = entitled_desktop_lift_client
+    _configure_omega_test_adapter(client.app)
+    hb = client.get("/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")).json()
     assert hb["system"] == "leviathan"
     assert hb["halted"] is False
 
     client.post("/omega/kill", **_omega_request_kwargs("omega:kill"))
-    hb2 = client.get(
-        "/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")
-    ).json()
+    hb2 = client.get("/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")).json()
     assert hb2["halted"] is True
     assert "omega_kill_signal" in hb2["active_halts"]
 
@@ -237,7 +239,12 @@ def test_omega_heartbeat_and_kill_sync(client: TestClient) -> None:
         **_omega_request_kwargs("omega:inquiry"),
     ).json()
     assert inq["permission"] == "deny"
-    client.post("/risk/halt/lift", json={"reason": "omega_kill_signal"})
+    lifted = client.post(
+        "/risk/halt/lift",
+        json={"reason": "omega_kill_signal"},
+        headers=lift_headers,
+    )
+    assert lifted.status_code == 200
 
 
 def test_omega_inquiry_returns_confidence(client: TestClient) -> None:
@@ -274,9 +281,7 @@ def test_omega_heartbeat_uses_one_atomic_halt_snapshot(
 
     mutation = Thread(target=engage_between_reads)
     mutation.start()
-    heartbeat = client.get(
-        "/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat")
-    )
+    heartbeat = client.get("/omega/heartbeat", **_omega_request_kwargs("omega:heartbeat"))
     mutation.join(timeout=2)
     assert not mutation.is_alive()
     assert heartbeat.status_code == 200

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Request, Response
-from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_core import PydanticCustomError
 
 from leviathan_core.seal import require
@@ -61,6 +61,7 @@ class CredentialDeleteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
 
     confirm_environment: Literal["LIVE"] | None = None
+    confirmation_token: SecretStr | None = Field(default=None, max_length=128)
 
 
 def _store(request: Request) -> CredentialStore:
@@ -111,47 +112,3 @@ def status(request: Request, response: Response) -> dict[str, list[dict[str, Any
         )
     rows.sort(key=lambda row: (str(row["provider"]), str(row["environment"]), str(row["profile"])))
     return {"profiles": rows}
-
-
-@router.put("/{provider}/{environment}/{profile_id}")
-def put_profile(
-    provider: str,
-    environment: str,
-    profile_id: str,
-    body: CredentialPutRequest,
-    request: Request,
-    response: Response,
-) -> dict[str, object]:
-    _cache(response)
-    store = _store(request)
-    payload = body.model_dump(exclude_unset=True)
-    if environment == "LIVE" and payload.get("confirm_environment") != "LIVE":
-        raise CredentialError("LIVE_CONFIRMATION_REQUIRED")
-    profile = store.put_profile(provider, environment, profile_id, payload)
-    require(profile, "leviathan_vault.app_credentials.profile.v1")
-    return {
-        "provider": profile.provider,
-        "environment": profile.environment,
-        "profile": profile.profile_id,
-        "revision": profile.revision,
-        "configured": dict(profile.configured),
-        "updated_at": profile.updated_at.isoformat(),
-    }
-
-
-@router.delete("/{provider}/{environment}/{profile_id}", status_code=204)
-def delete_profile(
-    provider: str,
-    environment: str,
-    profile_id: str,
-    request: Request,
-    response: Response,
-    body: CredentialDeleteRequest | None = None,
-) -> Response:
-    _cache(response)
-    store = _store(request)
-    confirmation = None if body is None else body.confirm_environment
-    if environment == "LIVE" and confirmation != "LIVE":
-        raise CredentialError("LIVE_CONFIRMATION_REQUIRED")
-    store.delete_profile(provider, environment, profile_id)
-    return Response(status_code=204, headers={"Cache-Control": "no-store"})

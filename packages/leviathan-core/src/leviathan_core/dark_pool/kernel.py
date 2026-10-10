@@ -751,6 +751,9 @@ def _calculate_impl(
                 bucket_counts=bucket_rows,
                 counts_low=low_count,
                 total_dp_trades=len(adjusted_dark),
+                latest_contributing_event_ns=max(
+                    (item[0].event_ns for item in adjusted_dark), default=None
+                ),
                 total_notional=dp_notional,
                 total_notional_ranked=_exact_decimal(_exact_sum(item[3] for item in qualifying)),
                 avg_trade_size=_ratio(dp_volume, Decimal(len(adjusted_dark)))

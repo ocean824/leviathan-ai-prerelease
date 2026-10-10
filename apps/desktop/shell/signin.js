@@ -3,6 +3,8 @@
 
   const COMMANDS = Object.freeze({
     signIn: "license_sign_in",
+    googleSignIn: "license_google_sign_in",
+    googleEnrollTotp: "license_google_enroll_totp",
     enrollTotp: "license_enroll_totp",
     status: "license_status",
     signOut: "license_sign_out",
@@ -27,6 +29,8 @@
   const enrollmentQr = document.getElementById("totp-qr");
   const confirmForm = document.getElementById("totp-confirm-form");
   const confirmButton = confirmForm.querySelector("button");
+  const googleButton = document.getElementById("google-signin");
+  let googleEnrollmentPending = false;
 
   function showMessage(message) {
     status.textContent = message;
@@ -67,6 +71,7 @@
       passwordField.value = "";
       totpField.value = "";
       if (view && view.state === "TOTP_ENROLLMENT_REQUIRED") {
+        googleEnrollmentPending = false;
         if (!displayEnrollment(view.otpauthUri)) throw new Error("INVALID_ENROLLMENT_URI");
         button.disabled = false;
         return;
@@ -90,17 +95,47 @@
     }
   });
 
+  googleButton.addEventListener("click", async () => {
+    googleButton.disabled = true;
+    showMessage("Continue sign-in in your browser. Returning to this device completes verification.");
+    const totpField = form.elements.namedItem("totp_code");
+    try {
+      const view = await bridge.invoke(COMMANDS.googleSignIn, { totpCode: totpField.value || null });
+      totpField.value = "";
+      if (view && view.state === "TOTP_ENROLLMENT_REQUIRED") {
+        googleEnrollmentPending = true;
+        if (!displayEnrollment(view.otpauthUri)) throw new Error("INVALID_ENROLLMENT_URI");
+        return;
+      }
+      const unlock = api.deriveUnlockView(view.state, view.features || {});
+      if (!unlock.unlocked || unlock.state !== "VERIFIED_ONLINE") throw new Error("LICENSE_NOT_VERIFIED");
+      showMessage("Google sign-in verified. Opening desktop?");
+    } catch {
+      totpField.value = "";
+      clearEnrollmentMaterial();
+      enrollment.hidden = true;
+      form.hidden = false;
+      showMessage("Google sign-in or license verification failed. Retry or contact support.");
+    } finally {
+      googleButton.disabled = false;
+    }
+  });
+
   confirmForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     confirmButton.disabled = true;
     const code = confirmForm.elements.namedItem("enrollment_code").value;
     try {
-      await bridge.invoke(COMMANDS.enrollTotp, { code });
+      await bridge.invoke(googleEnrollmentPending ? COMMANDS.googleEnrollTotp : COMMANDS.enrollTotp, { code });
+      const wasGoogleEnrollment = googleEnrollmentPending;
+      googleEnrollmentPending = false;
       clearEnrollmentMaterial();
       enrollment.hidden = true;
       form.hidden = false;
       button.disabled = false;
-      showMessage("Authenticator confirmed. Sign in again with your current authenticator code.");
+      showMessage(wasGoogleEnrollment
+        ? "Authenticator confirmed. Continue with Google again to finish sign-in."
+        : "Authenticator confirmed. Sign in again with your current authenticator code.");
     } catch {
       confirmForm.elements.namedItem("enrollment_code").value = "";
       showMessage("Authenticator confirmation failed. Enter a current code and try again.");

@@ -3,12 +3,103 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from leviathan_api.credential_connections import (
+    CredentialAuditEventV1,
+    CredentialConnectionsRuntimeV1,
+    CredentialReferenceV1,
+    CredentialStatusV1,
+    CredentialTestResultV1,
+)
 from leviathan_api.main import create_app
+from leviathan_core.security.authz_models import (
+    _VERIFIER_MARKER,
+    PrincipalV1,
+    TrustedPrincipalAdapterV1,
+)
 from leviathan_vault.app_credentials import InMemoryCredentialStore
 
 
+class _Tester:
+    def test(self, reference: CredentialReferenceV1) -> CredentialTestResultV1:
+        return CredentialTestResultV1(verified=True)
+
+
+class _Audit:
+    def append(self, event: CredentialAuditEventV1) -> None:
+        return None
+
+
+class _Status:
+    def read_status(self, reference: CredentialReferenceV1) -> CredentialStatusV1:
+        return CredentialStatusV1(
+            provider_id=reference.provider_id,
+            environment=reference.environment,
+            configured=False,
+        )
+
+    def record_status(self, status: CredentialStatusV1) -> None:
+        return None
+
+
+class _Bindings:
+    def resolve_bindings(self, provider: str, account_id: str) -> tuple[()]:
+        return ()
+
+    def bump_credential_revision(
+        self, organization_id: str, account_id: str, provider: str
+    ) -> None:
+        return None
+
+
+def _runtime(store: InMemoryCredentialStore) -> CredentialConnectionsRuntimeV1:
+    return CredentialConnectionsRuntimeV1(
+        credential_store=store,
+        project_secret_store=None,
+        tester=_Tester(),  # type: ignore[arg-type]
+        audit=_Audit(),  # type: ignore[arg-type]
+        status=_Status(),  # type: ignore[arg-type]
+        live_bindings=_Bindings(),  # type: ignore[arg-type]
+        clock_ns=lambda: 1_800_000_000_000_000_000,
+    )
+
+
 def _client(store: InMemoryCredentialStore | None = None) -> TestClient:
-    return TestClient(create_app(credential_store=store))
+    app = create_app(
+        credential_store=store,
+        credential_connections_runtime=_runtime(store) if store is not None else None,
+    )
+    claims = PrincipalV1(
+        principal_id="credential-owner",
+        project_id="leviathan-ai",
+        roles=("operator",),
+        env="production",
+    )
+    principal = TrustedPrincipalAdapterV1.from_verified_claims(
+        claims, verifier_marker=_VERIFIER_MARKER
+    )
+
+    @app.middleware("http")
+    async def inject_principal(request, call_next):  # type: ignore[no-untyped-def]
+        request.state.trusted_principal = principal
+        return await call_next(request)
+
+    return TestClient(
+        app,
+        base_url="http://127.0.0.1:8000",
+        client=("127.0.0.1", 51000),
+    )
+
+
+def _remove(client: TestClient, root: str, *, live: bool = False) -> object:
+    confirmation = client.post(
+        f"{root}/remove-confirmation",
+        headers={"Origin": "http://127.0.0.1:8000"},
+    )
+    assert confirmation.status_code == 200
+    body: dict[str, object] = {"confirmation_token": confirmation.json()["confirmation_token"]}
+    if live:
+        body["confirm_environment"] = "LIVE"
+    return client.request("DELETE", root, json=body)
 
 
 def test_status_is_content_free_and_uncached() -> None:
@@ -38,13 +129,23 @@ def test_partial_put_live_confirmation_delete_and_exact_paths() -> None:
         assert client.put(root, json={"key_id": "SYNTHETIC-key-0001"}).status_code == 409
         assert (
             client.put(
-                root, json={"key_id": "SYNTHETIC-key-0001", "confirm_environment": "LIVE"}
+                root,
+                json={
+                    "key_id": "SYNTHETIC-key-0001",
+                    "account_id": "acct-synthetic-1",
+                    "confirm_environment": "LIVE",
+                },
             ).status_code
             == 200
         )
         assert (
             client.put(
-                root, json={"secret_key": "SYNTHETIC-secret-0002", "confirm_environment": "LIVE"}
+                root,
+                json={
+                    "secret_key": "SYNTHETIC-secret-0002",
+                    "account_id": "acct-synthetic-1",
+                    "confirm_environment": "LIVE",
+                },
             ).status_code
             == 200
         )
@@ -56,10 +157,11 @@ def test_partial_put_live_confirmation_delete_and_exact_paths() -> None:
         malformed = client.request("DELETE", root, json={"confirm_environment": "PAPER"})
         assert malformed.status_code == 422
         assert "PAPER" not in malformed.text
-        deleted = client.request("DELETE", root, json={"confirm_environment": "LIVE"})
+        deleted = _remove(client, root, live=True)
+        assert hasattr(deleted, "status_code")
         assert deleted.status_code == 204
         assert deleted.headers["cache-control"] == "no-store"
-        assert client.get("/api/live-trading/credentials").status_code == 404
+        assert client.get("/api/live-trading/credentials").status_code == 200
 
 
 def test_no_store_missing_store_and_content_free_validation(caplog) -> None:
@@ -93,13 +195,30 @@ def test_no_store_missing_store_and_content_free_validation(caplog) -> None:
 
 
 def test_mutation_does_not_enable_orders_or_live_mode() -> None:
-    app = create_app(credential_store=InMemoryCredentialStore())
+    store = InMemoryCredentialStore()
+    app = create_app(credential_store=store, credential_connections_runtime=_runtime(store))
+    claims = PrincipalV1(
+        principal_id="credential-owner",
+        project_id="leviathan-ai",
+        roles=("operator",),
+        env="production",
+    )
+    principal = TrustedPrincipalAdapterV1.from_verified_claims(
+        claims, verifier_marker=_VERIFIER_MARKER
+    )
+
+    @app.middleware("http")
+    async def inject_principal(request, call_next):  # type: ignore[no-untyped-def]
+        request.state.trusted_principal = principal
+        return await call_next(request)
+
     with TestClient(app) as client:
         response = client.put(
             "/live-trading/credentials/ALPACA/LIVE/default",
             json={
                 "key_id": "SYNTHETIC-key-0001",
                 "secret_key": "SYNTHETIC-secret-0002",
+                "account_id": "acct-synthetic-1",
                 "confirm_environment": "LIVE",
             },
         )
@@ -153,3 +272,16 @@ def test_status_reports_corruption_per_profile_without_hiding_healthy_profiles()
     assert damaged["status"] == "CORRUPT"
     assert damaged["configured"] == {"key_id": False, "secret_key": False}
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_legacy_mutation_requires_trusted_principal() -> None:
+    store = InMemoryCredentialStore()
+    app = create_app(credential_store=store, credential_connections_runtime=_runtime(store))
+    with TestClient(app) as client:
+        response = client.put(
+            "/live-trading/credentials/ALPACA/PAPER/default",
+            json={"key_id": "SYNTHETIC-key-0001"},
+        )
+    assert response.status_code == 401
+    assert response.json() == {"code": "PRINCIPAL_UNTRUSTED"}
+    assert store.status_all() == ()

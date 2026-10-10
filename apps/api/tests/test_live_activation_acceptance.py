@@ -30,8 +30,14 @@ ACCOUNT = "live-account-1"
 DIGEST = "a" * 64
 
 
-def principal(roles: tuple[str, ...] = ("owner",)) -> object:
-    claims = PrincipalV1(principal_id="owner-1", project_id="org-1", roles=roles, env="production")
+def principal(roles: tuple[str, ...] = ("owner",), *, device_id: str | None = "device-1") -> object:
+    claims = PrincipalV1(
+        principal_id="owner-1",
+        project_id="org-1",
+        roles=roles,
+        env="production",
+        device_id=device_id,
+    )
     return TrustedPrincipalAdapterV1.from_verified_claims(claims, verifier_marker=_VERIFIER_MARKER)
 
 
@@ -428,12 +434,39 @@ def test_each_missing_or_stale_trusted_precondition_denies_without_enabled_event
     assert all(event.event_type == "ACTIVATION_REQUESTED" for event in log.events)
 
 
-def test_only_verified_owner_claim_in_server_principal_can_enable() -> None:
-    client, _, log = make_client(trusted=principal(("operator",)))
+def test_entitled_non_admin_user_bound_account_can_enable() -> None:
+    client, _, log = make_client(trusted=principal(("user",)))
     response = enable(client)
-    assert response.status_code == 403
-    assert response.json() == {"error": {"code": "OWNER_REQUIRED"}}
-    assert not any(event.event_type == "ENABLED" for event in log.events)
+    assert response.status_code == 200
+    assert response.json()["effective_state"] == "LIVE"
+    assert any(event.event_type == "ENABLED" for event in log.events)
+
+
+def test_entitled_user_cannot_enable_another_users_account() -> None:
+    evidence = Evidence()
+    evidence.account = evidence.account.model_copy(update={"owner_principal_id": "another-user"})
+    client, _, log = make_client(trusted=principal(("user",)), evidence=evidence)
+
+    response = enable(client)
+
+    assert response.status_code == 404
+    assert response.json() == {"error": {"code": "ACCOUNT_NOT_FOUND"}}
+    assert log.events == []
+
+
+def test_caller_forged_device_id_is_rejected_without_side_effects() -> None:
+    client, _, log = make_client(trusted=principal())
+    response = enable(
+        client,
+        {
+            "account_id": ACCOUNT,
+            "confirmation": f"ENABLE LIVE {ACCOUNT}",
+            "device_id": "device-forged",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json() == {"error": {"code": "INVALID_REQUEST"}}
+    assert log.events == []
 
 
 def test_mfa_age_boundary_300_seconds_is_allowed() -> None:

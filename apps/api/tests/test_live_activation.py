@@ -29,12 +29,15 @@ NOW = 1_800_000_000_000_000_000
 DIGEST = "a" * 64
 
 
-def _principal(roles: tuple[str, ...] = ("owner",)) -> object:
+def _principal(
+    roles: tuple[str, ...] = ("owner",), *, device_id: str | None = "device-1"
+) -> object:
     claims = PrincipalV1(
         principal_id="owner-1",
         project_id="org-1",
         roles=roles,
         env="production",
+        device_id=device_id,
     )
     return TrustedPrincipalAdapterV1.from_verified_claims(claims, verifier_marker=_VERIFIER_MARKER)
 
@@ -276,19 +279,30 @@ def test_enable_requires_confirmation_and_closed_request_shape() -> None:
     assert store.events == []
 
 
-def test_only_owner_can_enable_and_halt_precedes_every_other_evidence() -> None:
-    client, ports, store = _client(principal=_principal(("operator",)))
-    denied = _enable(client)
-    assert denied.status_code == 403
-    assert denied.json() == {"error": {"code": "OWNER_REQUIRED"}}
+def test_entitled_non_admin_account_owner_can_enable_and_halt_still_precedes_evidence() -> None:
+    client, ports, store = _client(principal=_principal(("user",)))
+    enabled = _enable(client)
+    assert enabled.status_code == 200
+    assert enabled.json()["effective_state"] == "LIVE"
 
     ports.halted = True
     ports.fail_entitlement = True
     halted = _enable(client)
     assert halted.status_code == 403
     assert halted.json() == {"error": {"code": "HALT_ACTIVE"}}
-    assert len(store.events) == 2
+    assert len(store.events) == 3
     assert store.events[-1].reason_code == "HALT_ACTIVE"
+
+
+def test_entitled_non_admin_cannot_enable_another_principals_account() -> None:
+    client, ports, store = _client(principal=_principal(("user",)))
+    ports.account = ports.account.model_copy(update={"owner_principal_id": "other-user"})
+
+    response = _enable(client)
+
+    assert response.status_code == 404
+    assert response.json() == {"error": {"code": "ACCOUNT_NOT_FOUND"}}
+    assert store.events == []
 
 
 @pytest.mark.parametrize(
@@ -406,6 +420,26 @@ def test_enable_appends_requested_and_enabled_atomically_then_gets_live_projecti
     assert ports.open_orders_calls[-1] == ("owner-1", "live-account-1")
 
 
+def test_credential_revision_change_alone_invalidates_enabled_live_snapshot() -> None:
+    client, ports, store = _client(principal=_principal())
+    assert _enable(client).status_code == 200
+    assert (
+        client.get("/live-activation/status?account_id=live-account-1").json()["effective_state"]
+        == "LIVE"
+    )
+
+    # Model the credential store's revision bump without invoking deactivation.
+    ports.account = ports.account.model_copy(update={"credential_revision": "credential-3"})
+    ports.broker = ports.broker.model_copy(update={"credential_revision": "credential-3"})
+    status = client.get("/live-activation/status?account_id=live-account-1")
+
+    assert status.status_code == 200
+    assert status.json()["effective_state"] == "OFF"
+    assert status.json()["blockers"] == ["ACCOUNT_BINDING_CHANGED"]
+    assert store.events[-1].event_type == "INVALIDATED"
+    assert store.events[-1].reason_code == "ACCOUNT_BINDING_CHANGED"
+
+
 def test_halt_after_enable_invalidates_runtime_and_appends_event() -> None:
     client, ports, store = _client(principal=_principal())
     assert _enable(client).status_code == 200
@@ -451,6 +485,18 @@ def test_bad_query_and_wrong_account_have_fixed_errors_and_no_cache() -> None:
     assert wrong.status_code == 404
     assert wrong.json() == {"error": {"code": "ACCOUNT_NOT_FOUND"}}
     assert all(response.headers["cache-control"] == "no-store" for response in (bad_query, wrong))
+
+
+@pytest.mark.parametrize("trusted_device", [None, "device-forged"])
+def test_account_device_mismatch_denies_before_live_side_effects(
+    trusted_device: str | None,
+) -> None:
+    client, ports, store = _client(principal=_principal(device_id=trusted_device))
+    response = client.get("/live-activation/status?account_id=live-account-1")
+    assert response.status_code == 404
+    assert response.json() == {"error": {"code": "ACCOUNT_NOT_FOUND"}}
+    assert store.events == []
+    assert ports.read_count == 0
 
 
 def test_status_returns_only_bounded_verified_nonterminal_open_orders() -> None:

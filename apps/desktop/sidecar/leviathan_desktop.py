@@ -216,23 +216,27 @@ def build_server(
     port: int,
     *,
     credential_root: Path | None = None,
+    session_principal_id: str | None = None,
+    session_entitlement_sha256: str | None = None,
+    license_features: str | None = None,
 ) -> FastAPI:
+    from session_identity import session_identity_from_shell_env
+
     from leviathan_api import state
-    from leviathan_api.auth import OperatorPrincipalMiddleware, make_local_operator_profile
     from leviathan_api.main import create_app
     from leviathan_api.settings import get_settings
 
     state.repo_root = lambda: data_root
     get_settings.cache_clear()
-    api_app = create_app(credential_store=_runtime_credential_store(credential_root))
-    # AUTH-MW-001: only adapter-issued local-operator principals, minimum role, never live.
-    api_app.add_middleware(
-        OperatorPrincipalMiddleware,
-        capability=capability,
-        port=port,
-        profile=make_local_operator_profile(
-            principal_id="local-operator", project_id="leviathan-ai", env="paper"
-        ),
+    profile, features = session_identity_from_shell_env(
+        session_principal_id, session_entitlement_sha256, license_features
+    )
+    api_app = create_app(
+        credential_store=_runtime_credential_store(credential_root),
+        desktop_operator_capability=capability,
+        desktop_operator_port=port,
+        desktop_operator_profile=profile,
+        desktop_operator_features=frozenset(features) if profile is not None else frozenset(),
     )
 
     @asynccontextmanager
@@ -271,6 +275,9 @@ def main() -> int:
     capability = os.environ.pop("LEVIATHAN_DESKTOP_CAPABILITY", "")
     if len(capability) != 64 or any(char not in "0123456789abcdef" for char in capability):
         raise RuntimeError("The desktop shell capability is missing or invalid")
+    session_principal_id = os.environ.pop("LEVIATHAN_SESSION_PRINCIPAL", None)
+    session_entitlement_sha256 = os.environ.pop("LEVIATHAN_SESSION_ENTITLEMENT_SHA256", None)
+    license_features = os.environ.get("LEVIATHAN_LICENSE_FEATURES")
     preexisted = os.environ.pop("LEVIATHAN_DATA_ROOT_PREEXISTED", "")
     entry_digest = os.environ.pop("LEVIATHAN_DATA_ROOT_ENTRY_SHA256", "")
     if preexisted not in {"0", "1"}:
@@ -284,7 +291,14 @@ def main() -> int:
     listener.bind(("127.0.0.1", 0))
     listener.listen(2048)
     port = listener.getsockname()[1]
-    app = build_server(data_root, capability, port)
+    app = build_server(
+        data_root,
+        capability,
+        port,
+        session_principal_id=session_principal_id,
+        session_entitlement_sha256=session_entitlement_sha256,
+        license_features=license_features,
+    )
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
     )

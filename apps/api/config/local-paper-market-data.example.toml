@@ -31,3 +31,22 @@ max_estimated_usd = "1.00"
 min_delay_ms = 250
 max_delay_ms = 5000
 max_attempts = 12
+
+# Keyless public evidence adapters. FINRA OAuth credentials are resolved from
+# the project vault at runtime and never stored in this settings file.
+[public_sources]
+enabled = false
+sec_user_agent = "LeviathanAI/0.1 contact@example.invalid"
+sec_requests_per_second = 5
+http_timeout_seconds = 8
+http_max_retries = 2
+finra_enabled = false
+cftc_enabled = false
+treasury_enabled = false
+nyfed_enabled = false
+treasury_auctions_enabled = false
+sec_ownership_filings_enabled = false
+house_ptr_enabled = false
+coinbase_derivatives_enabled = false
+# Non-secret vault profile selector; FINRA_CLIENT_ID and FINRA_CLIENT_SECRET are resolved at runtime.
+finra_credentials_profile = "DEFAULT"

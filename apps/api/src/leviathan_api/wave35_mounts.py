@@ -38,6 +38,10 @@ from leviathan_api.connections_runtime import (
     ConnectionStatusV1,
     EnvironmentV1,
 )
+from leviathan_api.credential_connections import (
+    CredentialConnectionsRuntimeV1,
+    create_credential_connections_router,
+)
 from leviathan_api.live_activation_runtime import (
     LazyLiveActivationGateV1,
     LiveActivationEvidenceCaptureV1,
@@ -90,6 +94,7 @@ from leviathan_market_data.live.book_cache import BookApplyReceiptV1
 from leviathan_market_data.providers.registry import DataSourceRegistryV1
 from leviathan_market_data.schema import NormalizedMarketEventV1
 from leviathan_vault.app_credentials import CredentialStore
+from leviathan_vault.project_secrets import ProjectSecretStorePort
 
 PrincipalResolver = Callable[[HTTPConnection], TrustedPrincipalV1 | None]
 ProviderVaultResolver = Callable[[str, str], str]
@@ -114,6 +119,8 @@ class Wave35MountDependenciesV1:
     profile_id: str = "default"
     credential_environment: str = "PAPER"
     provider_vault_resolver: ProviderVaultResolver | None = None
+    project_secret_store: ProjectSecretStorePort | None = None
+    credential_connections_runtime: CredentialConnectionsRuntimeV1 | None = None
     provider_transports: Mapping[str, object] | None = None
     historical_transports: Mapping[str, object] | None = None
     backfill_executor: BackfillPort | None = None
@@ -401,6 +408,8 @@ def configure_wave35_mounts(
     if paper_market_data_ports is None and market_data_resolution.config is not None:
 
         def resolve_market_data_ref(reference: str, name: str) -> str:
+            if dependencies.project_secret_store is not None:
+                return dependencies.project_secret_store.get(reference, name).get_secret_value()
             if dependencies.provider_vault_resolver is not None:
                 return dependencies.provider_vault_resolver(reference, name)
             if dependencies.vault_resolver is not None:
@@ -557,6 +566,10 @@ def configure_wave35_mounts(
         oauth_host_allowlist=(),
     )
     connections_router = connections.create_connections_router(connections_runtime)
+    credential_connections_router = create_credential_connections_router(
+        dependencies.credential_connections_runtime
+    )
+    state.credential_connections_runtime = dependencies.credential_connections_runtime
 
     live_store = dependencies.live_activation_store
     live_ports = dependencies.live_activation_ports
@@ -607,6 +620,7 @@ def configure_wave35_mounts(
             (live_router, "/api"),
         ):
             app.include_router(item, prefix=prefix)
+        app.include_router(credential_connections_router, prefix="/api")
         _include_chat_tools_router(app, chat_tools_router)
         state.wave35_routers_mounted = True
 

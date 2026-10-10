@@ -74,8 +74,13 @@ def _fingerprint(path: Path) -> dict[str, int | str]:
 _PRIVATE_DIRECTORY_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$trustedAdministrativeOwner = 'S-1-5-32-544'
 $actual = Get-Acl -LiteralPath $env:XYRA_IMPORT_BACKUP_ROOT
-if ($actual.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { exit 1 }
+$owner = $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value
+# Elevated hosted Windows runners can create temp directories with the local
+# Administrators group as owner. That principal is trusted; arbitrary owners
+# remain rejected because owners have implicit WRITE_DAC.
+if ($owner -ne $sid.Value -and $owner -ne $trustedAdministrativeOwner) { exit 1 }
 $rules = @($actual.GetAccessRules($true, $true,
     [Security.Principal.SecurityIdentifier]))
 if ($actual.AreAccessRulesProtected -and

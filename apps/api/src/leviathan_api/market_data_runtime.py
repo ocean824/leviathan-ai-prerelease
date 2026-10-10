@@ -61,6 +61,7 @@ from leviathan_market_data.providers.massive_live import (
     MassiveLiveSubscriptionV1,
     MassiveWebSocketTransportPort,
 )
+from leviathan_market_data.public_sources import PublicSourceError, PublicSourcesClient
 from leviathan_market_data.schema import (
     BarPayload,
     NormalizedMarketEventV1,
@@ -223,6 +224,20 @@ class MarketDataRuntime:
         self.clock_ns = clock_ns
         self.monotonic_ns = monotonic_ns
         self._resolve_ref = vault_ref_resolver
+        self.public_sources_client: PublicSourcesClient | None = None
+        if config.public_sources.enabled:
+            try:
+                self.public_sources_client = PublicSourcesClient.from_vault(
+                    sec_user_agent=config.public_sources.sec_user_agent or "",
+                    vault_ref_resolver=vault_ref_resolver,
+                    finra_enabled=config.public_sources.finra_enabled,
+                    sec_rate_per_second=config.public_sources.sec_requests_per_second,
+                    http_timeout_seconds=config.public_sources.http_timeout_seconds,
+                    http_max_retries=config.public_sources.http_max_retries,
+                    coinbase_derivatives_enabled=config.public_sources.coinbase_derivatives_enabled,
+                )
+            except PublicSourceError:
+                raise MarketDataRuntimeError("NOT_CONFIGURED") from None
         self._transports = dict(transports or {})
         self._historical_transports = dict(historical_transports or {})
         self._queue_capacity = queue_capacity

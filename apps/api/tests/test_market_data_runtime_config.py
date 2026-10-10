@@ -106,6 +106,29 @@ def test_local_file_is_loaded_from_existing_app_data_root(tmp_path: Path) -> Non
     assert result.config is not None and result.config.project_id == "test-project"
 
 
+def test_public_source_settings_are_non_secret_and_require_sec_user_agent(tmp_path: Path) -> None:
+    config = (
+        _CONFIG
+        + """
+
+[public_sources]
+enabled = true
+sec_user_agent = "Leviathan contact@example.test"
+sec_requests_per_second = 10
+"""
+    )
+    path = _write_config(tmp_path, config)
+    loaded = load_market_data_runtime_config(path)
+    assert loaded.public_sources.enabled is True
+    assert loaded.public_sources.sec_user_agent == "Leviathan contact@example.test"
+    assert loaded.public_sources.sec_requests_per_second == 10
+
+    unsafe = config.replace('sec_user_agent = "Leviathan contact@example.test"\n', "")
+    path.write_text(unsafe, encoding="utf-8")
+    with pytest.raises(MarketDataConfigError, match="INVALID_CONFIG"):
+        load_market_data_runtime_config(path)
+
+
 def test_explicit_path_env_is_used_only_when_app_data_root_is_unavailable(tmp_path: Path) -> None:
     path = tmp_path / "paper-runtime.toml"
     path.write_text(_CONFIG, encoding="utf-8")

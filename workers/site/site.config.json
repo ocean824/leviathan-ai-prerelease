@@ -1,0 +1,25 @@
+{
+  "product_name": "Leviathan AI",
+  "company": {
+    "legal_name": {
+      "value": "Lossless Holdings, LLC",
+      "owner_confirmation_required": true
+    },
+    "formation_state": "[REQUIRED: state or country of formation]",
+    "mailing_address": "[REQUIRED: business mailing address]",
+    "support_email": "[REQUIRED: public support email]",
+    "regulatory_status": "[REQUIRED: owner-supplied full regulatory-status sentence]",
+    "web_backend_host": "Cloudflare (Workers and Containers)",
+    "domain": "[REQUIRED: approved public domain]",
+    "effective_date": "[REQUIRED: effective date]"
+  },
+  "retention": {
+    "account_deletion_days": "[REQUIRED: owner-confirmed account-record deletion period in days]",
+    "legal_retention_years": "[REQUIRED: owner-confirmed maximum legal-retention period in years]"
+  },
+  "refund_policy": "[REQUIRED: owner-confirmed refund policy]",
+  "billing": {
+    "cancellation_method": "email"
+  },
+  "last_updated": "2026-10-09"
+}

@@ -1,4 +1,4 @@
-﻿[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)][string]$MasterRoot,
     [string]$WranglerJsPath,
@@ -9,7 +9,8 @@ param(
     [string]$XyraModulePath,
     [string[]]$ProviderIds = @('DATABENTO', 'MASSIVE', 'FRED', 'BEA', 'EIA', 'UNUSUAL_WHALES'),
     [switch]$InitializeLiveKeys,
-    [switch]$RotateLiveKeys
+    [switch]$RotateLiveKeys,
+    [switch]$IncludeSite
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,10 +21,12 @@ $projectEnvironment = 'live'
 $licensingWorker = 'leviathan-licensing-worker'
 $releaseWorker = 'leviathan-release-feed'
 $gatewayWorker = 'leviathan-data-gateway'
+$siteWorker = 'leviathan-site'
 $releaseBucket = 'leviathan-release-feed'
 $licensingOrigin = "https://$licensingWorker.ocean824.workers.dev"
 $releaseOrigin = "https://$releaseWorker.ocean824.workers.dev"
 $gatewayOrigin = "https://$gatewayWorker.ocean824.workers.dev"
+$siteOrigin = "https://$siteWorker.ocean824.workers.dev"
 $providerBindings = @{
     DATABENTO = 'PROVIDER__DATABENTO__API_KEY'
     MASSIVE = 'PROVIDER__MASSIVE__API_KEY'
@@ -37,7 +40,8 @@ function Write-Plan {
     Write-Output 'Plan only; no secrets read.'
     Write-Output 'Live key initialization writes four values and a final commit marker; rotation requires -RotateLiveKeys -InitializeLiveKeys.'
     Write-Output "R2 bucket: $releaseBucket"
-    Write-Output "Deploy order: $licensingWorker, $gatewayWorker, $releaseWorker"
+    Write-Output "Deploy order: $licensingWorker, $gatewayWorker, $releaseWorker$(if ($IncludeSite) { ", $siteWorker" })"
+    Write-Output "Site Worker included: $([bool]$IncludeSite) (no secrets; requires complete owner-approved site facts)."
     Write-Output "Stripe mode: $StripeMode (Test is default; Live requires -StripeMode Live explicitly)"
     Write-Output 'Licensing secrets: DATABASE_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, LICENSE_SIGNING_PRIVATE_KEY_PKCS8, ADMIN_TOTP_ENCRYPTION_KEY, INTERNAL_SERVICE_TOKEN'
     Write-Output 'Licensing vars: STRIPE_MODE, STRIPE_PRICE_ID, LICENSE_SIGNING_KEY_ID, LICENSE_VERIFY_PUBLIC_KEY_JWK, SIGNUP_SUCCESS_URL, SIGNUP_CANCEL_URL, ADMIN_SESSION_TTL_S, USER_SESSION_TTL_S, CAPS_APPROVED'
@@ -415,6 +419,15 @@ function Invoke-Deploy([string]$WorkerDirectory, [string[]]$Vars, [Security.Secu
     Write-Output "Deployed Worker: $(Split-Path -Leaf $WorkerDirectory)"
 }
 
+function Invoke-SiteBuild([string]$SiteDirectory, [string]$NodePath) {
+    $previous = Get-Location
+    try {
+        Set-Location -LiteralPath $SiteDirectory
+        & $NodePath 'scripts/build.mjs'
+        if ($LASTEXITCODE -ne 0) { throw 'SITE_BUILD_FAILED' }
+    } finally { Set-Location -LiteralPath $previous.Path }
+}
+
 function Invoke-R2BucketEnsure([Security.SecureString]$ApiToken) {
     # wrangler 4.x has no --json for r2 bucket list; it prints "name:  <bucket>" lines.
     $listing = [string](Start-WranglerProcess @('r2', 'bucket', 'list') $ApiToken $null)
@@ -427,7 +440,7 @@ function Invoke-R2BucketEnsure([Security.SecureString]$ApiToken) {
     Write-Output "Created R2 bucket: $releaseBucket"
 }
 
-function Invoke-Smoke([string]$Url, [int[]]$AcceptedStatuses, [switch]$AllowManifestBody) {
+function Invoke-Smoke([string]$Url, [int[]]$AcceptedStatuses, [switch]$AllowManifestBody, [string]$ExpectedTitle) {
     $status = 0
     $content = ''
     try {
@@ -443,11 +456,18 @@ function Invoke-Smoke([string]$Url, [int[]]$AcceptedStatuses, [switch]$AllowMani
     if ($status -eq 200 -and $AllowManifestBody) {
         try { $null = $content | ConvertFrom-Json } catch { throw 'SMOKE_CHECK_FAILED' }
     }
+    if ($ExpectedTitle -and ($status -ne 200 -or $content -notmatch ('<title>' + [regex]::Escape($ExpectedTitle) + '</title>'))) { throw 'SMOKE_CHECK_FAILED' }
     Write-Output "Smoke check passed: $Url ($status)"
 }
 
 if ($WhatIfPreference) { Write-Plan; return }
 if ($ProviderIds | Where-Object { -not $providerBindings.ContainsKey($_) }) { throw 'PROVIDER_ID_INVALID' }
+if ($IncludeSite) {
+    $siteFactsModule = Join-Path $PSScriptRoot '..\..\..\workers\site\src\site-facts.psm1'
+    $siteConfigPath = Join-Path $PSScriptRoot '..\..\..\workers\site\site.config.json'
+    Import-Module -Name $siteFactsModule -Force
+    Assert-SiteFactsComplete -ConfigPath $siteConfigPath
+}
 if ($StripeMode -eq 'Test') {
     if (-not $StripeTestPriceId -or $StripeTestPriceId -notmatch '^price_[A-Za-z0-9]+$') { throw 'STRIPE_PRICE_ID_INVALID' }
     $stripePriceId = $StripeTestPriceId
@@ -471,12 +491,16 @@ Import-Module -Name (Join-Path $PSScriptRoot 'SigningKeyPair.psm1') -Force
 
 if ($RotateLiveKeys -and -not $InitializeLiveKeys) { throw 'ROTATE_REQUIRES_INITIALIZE_LIVE_KEYS' }
 if ($InitializeLiveKeys) { Initialize-LiveRuntimeKeys; return }
-$liveRuntimeKeyValues = Read-LiveRuntimeKeysetValues
-$liveRuntimeKeysetMarker = Read-LiveRuntimeKeysetMarker
-if (-not (Test-LiveRuntimeKeysetCommit -Values $liveRuntimeKeyValues -Marker $liveRuntimeKeysetMarker -ValidateValues { param($values) Test-LiveRuntimeKeysetValues $values })) { throw 'LIVE_RUNTIME_KEYSET_UNCOMMITTED: initialize or repair the complete key set before deployment.' }
 if (-not (Test-Path -LiteralPath $WranglerJsPath -PathType Leaf) -or -not (Test-Path -LiteralPath $NodeExePath -PathType Leaf)) {
     throw 'PINNED_WRANGLER_RUNTIME_REQUIRED'
 }
+if ($IncludeSite) {
+    $siteDirectory = Join-Path $projectRoot 'workers\site'
+    Invoke-SiteBuild $siteDirectory $NodeExePath
+}
+$liveRuntimeKeyValues = Read-LiveRuntimeKeysetValues
+$liveRuntimeKeysetMarker = Read-LiveRuntimeKeysetMarker
+if (-not (Test-LiveRuntimeKeysetCommit -Values $liveRuntimeKeyValues -Marker $liveRuntimeKeysetMarker -ValidateValues { param($values) Test-LiveRuntimeKeysetValues $values })) { throw 'LIVE_RUNTIME_KEYSET_UNCOMMITTED: initialize or repair the complete key set before deployment.' }
 
 $apiToken = $null
 $privateKeySecure = $null
@@ -542,6 +566,7 @@ try {
     }
     Invoke-Deploy $gatewayDirectory @() $apiToken
     Invoke-Deploy $releaseDirectory @() $apiToken
+    if ($IncludeSite) { Invoke-Deploy $siteDirectory @() $apiToken }
 } finally {
     if ($null -ne $apiToken) { $apiToken.Dispose() }
     if ($null -ne $privateKeySecure) { $privateKeySecure.Dispose() }
@@ -557,6 +582,21 @@ Invoke-Smoke "$releaseOrigin/latest.json" @(200, 404) -AllowManifestBody
 Invoke-Smoke "$licensingOrigin/v1/signup/success" @(200)
 Invoke-Smoke "$licensingOrigin/v1/signup/cancel" @(200)
 Invoke-Smoke "$licensingOrigin/v1/admin/license" @(401, 403)
+if ($IncludeSite) {
+foreach ($sitePage in @(
+    @{ Path = '/'; Title = 'Trading and analysis platform | Leviathan AI' },
+    @{ Path = '/app'; Title = 'Web app coming soon | Leviathan AI' },
+    @{ Path = '/privacy'; Title = 'Privacy policy | Leviathan AI' },
+    @{ Path = '/terms'; Title = 'Terms of service | Leviathan AI' },
+    @{ Path = '/contact'; Title = 'Contact | Leviathan AI' },
+    @{ Path = '/risk-disclosure'; Title = 'Trading risk disclosure | Leviathan AI' },
+    @{ Path = '/data-deletion'; Title = 'Data deletion | Leviathan AI' },
+    @{ Path = '/security'; Title = 'Security | Leviathan AI' },
+    @{ Path = '/cookies'; Title = 'Cookies | Leviathan AI' },
+    @{ Path = '/subprocessors'; Title = 'Subprocessors | Leviathan AI' }
+)) { Invoke-Smoke "$siteOrigin$($sitePage.Path)" @(200) -ExpectedTitle $sitePage.Title }
+Invoke-Smoke "$siteOrigin/site.css" @(200)
+}
 
 
 

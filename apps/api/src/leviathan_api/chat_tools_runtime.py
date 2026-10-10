@@ -52,6 +52,7 @@ CHAT_TOOL_READ_ROUTE_ALLOWLIST_V1 = frozenset(
         "genomes",
         "knowledge_archive",
         "connections",
+        "credential_connections",
         "data_sources",
         "risk",
         "ea_template_catalog",
@@ -93,6 +94,8 @@ _ROUTE_BY_TOOL_ID = {
     "genomes.list": "genomes",
     "knowledge.archive.search": "knowledge_archive",
     "connections.status.read": "connections",
+    "connections.credentials.status.read": "credential_connections",
+    "connections.credentials.test": "credential_connections",
     "data_sources.status.read": "data_sources",
     "risk.status.read": "risk",
     "ea.templates.list": "ea_template_catalog",
@@ -149,7 +152,12 @@ class AppRoutePortAdapterV1:
                 reason_codes=("CHAT_ROUTE_DENIED",),
             )
         environment = arguments.get("environment")
-        if environment is not None and environment not in {"paper", "demo"}:
+        allowed_environments = (
+            {"DEVELOPMENT", "PAPER", "DEMO", "LIVE"}
+            if route_id == "credential_connections"
+            else {"paper", "demo"}
+        )
+        if environment is not None and environment not in allowed_environments:
             return AppRouteOutcomeV1(
                 status_code=403,
                 allowed=False,

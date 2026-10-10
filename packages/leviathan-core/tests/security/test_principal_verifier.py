@@ -83,14 +83,24 @@ class _Revocations:
 
 
 def _verifier(
-    key: RSAPublicKeyV1, *, now: datetime = NOW, mtls: bool = False,
+    key: RSAPublicKeyV1,
+    *,
+    now: datetime = NOW,
+    mtls: bool = False,
     revoked: bool = False,
 ) -> PrincipalVerifier:
     return PrincipalVerifier(
         trusted_issuer=TrustedIssuerV1(
-            "issuer.synthetic", "api.synthetic", "org.synthetic", "leviathan-ai", "test", mtls,
+            "issuer.synthetic",
+            "api.synthetic",
+            "org.synthetic",
+            "leviathan-ai",
+            "test",
+            mtls,
         ),
-        key_set=_Keys(key), revocations=_Revocations(revoked), clock=lambda: now,
+        key_set=_Keys(key),
+        revocations=_Revocations(revoked),
+        clock=lambda: now,
     )
 
 
@@ -100,17 +110,29 @@ def _b64(raw: bytes) -> str:
 
 def _claims() -> dict[str, Any]:
     return {
-        "iss": "issuer.synthetic", "aud": "api.synthetic", "org": "org.synthetic",
-        "sub": "service.alpha", "role": "risk.admin", "scope": ["research.read"],
-        "env": "test", "venue": "XNYS", "portfolio": "book.1",
-        "strategy": "alpha.1", "jti": "jti.1",
-        "iat": NOW_SECONDS - 10, "nbf": NOW_SECONDS - 10, "exp": NOW_SECONDS + 100,
+        "iss": "issuer.synthetic",
+        "aud": "api.synthetic",
+        "org": "org.synthetic",
+        "sub": "service.alpha",
+        "role": "risk.admin",
+        "scope": ["research.read"],
+        "env": "test",
+        "venue": "XNYS",
+        "portfolio": "book.1",
+        "strategy": "alpha.1",
+        "jti": "jti.1",
+        "iat": NOW_SECONDS - 10,
+        "nbf": NOW_SECONDS - 10,
+        "exp": NOW_SECONDS + 100,
     }
 
 
 def _token(
-    key: tuple[RSAPublicKeyV1, int], *, claims: dict[str, Any] | None = None,
-    header: dict[str, Any] | None = None, bad_signature: bool = False,
+    key: tuple[RSAPublicKeyV1, int],
+    *,
+    claims: dict[str, Any] | None = None,
+    header: dict[str, Any] | None = None,
+    bad_signature: bool = False,
 ) -> str:
     header_data = header if header is not None else {"alg": "RS256", "kid": "test.1"}
     claim_data = claims if claims is not None else _claims()
@@ -123,8 +145,11 @@ def _token(
 
 
 def _signed_token(
-    key: tuple[RSAPublicKeyV1, int], encoded_header: str, encoded_claims: str,
-    *, bad_signature: bool = False,
+    key: tuple[RSAPublicKeyV1, int],
+    encoded_header: str,
+    encoded_claims: str,
+    *,
+    bad_signature: bool = False,
 ) -> str:
     public, private = key
     encoded = f"{encoded_header}.{encoded_claims}"
@@ -147,7 +172,8 @@ def test_valid_token_issues_sealed_principal_and_sec002_identity(
     synthetic_key: tuple[RSAPublicKeyV1, int],
 ) -> None:
     verifier = _verifier(synthetic_key[0])
-    verified = verifier.verify(_token(synthetic_key))
+    token = _token(synthetic_key, claims=_claims() | {"device_id": "device.verified"})
+    verified = verifier.verify(token)
     with pytest.raises(PrincipalVerificationError) as direct:
         VerifiedPrincipalV1(**verified.model_dump())
     assert direct.value.code is VerificationCodeV1.PRINCIPAL_UNISSUED
@@ -155,6 +181,7 @@ def test_valid_token_issues_sealed_principal_and_sec002_identity(
     assert verified.verified_at_ns == NOW_SECONDS * 1_000_000_000
     assert verified.scopes == ("research.read",)
     assert verified.org_id == "org.synthetic"
+    assert verified.device_id == "device.verified"
     claims = verifier.to_sec002_claims(verified)
     assert claims.principal_id == "service.alpha"
     assert claims.roles == ("risk.admin",)
@@ -162,17 +189,44 @@ def test_valid_token_issues_sealed_principal_and_sec002_identity(
     assert type(trusted) is TrustedPrincipalV1
     assert trusted.project_id == "leviathan-ai"
     assert trusted.break_glass is False
+    assert trusted.device_id == "device.verified"
 
 
-@pytest.mark.parametrize("change", [
-    {"iss": "issuer.other"}, {"aud": "api.other"}, {"org": "org.other"},
-    {"env": "prod"}, {"role": "admin*"}, {"scope": ["research.read", "research.read"]},
-    {"exp": NOW_SECONDS + 901}, {"exp": NOW_SECONDS - 61},
-    {"iat": NOW_SECONDS + 61}, {"nbf": NOW_SECONDS + 61},
-    {"iat": True}, {"sub": None}, {"approval": "approved"},
-])
+def test_device_id_is_optional_but_only_valid_signed_claims_are_propagated(
+    synthetic_key: tuple[RSAPublicKeyV1, int],
+) -> None:
+    verifier = _verifier(synthetic_key[0])
+    verified = verifier.verify(_token(synthetic_key))
+    assert verified.device_id is None
+    assert verifier.to_trusted_principal(verified).device_id is None
+
+    for invalid_device_id in ("", "device id", 7, True):
+        token = _token(synthetic_key, claims=_claims() | {"device_id": invalid_device_id})
+        with pytest.raises(PrincipalVerificationError, match=r"^TOKEN_REJECTED$"):
+            verifier.verify(token)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"iss": "issuer.other"},
+        {"aud": "api.other"},
+        {"org": "org.other"},
+        {"env": "prod"},
+        {"role": "admin*"},
+        {"scope": ["research.read", "research.read"]},
+        {"exp": NOW_SECONDS + 901},
+        {"exp": NOW_SECONDS - 61},
+        {"iat": NOW_SECONDS + 61},
+        {"nbf": NOW_SECONDS + 61},
+        {"iat": True},
+        {"sub": None},
+        {"approval": "approved"},
+    ],
+)
 def test_invalid_claims_fail_closed_and_redacted(
-    synthetic_key: tuple[RSAPublicKeyV1, int], change: dict[str, Any],
+    synthetic_key: tuple[RSAPublicKeyV1, int],
+    change: dict[str, Any],
 ) -> None:
     claims = _claims() | change
     token = _token(synthetic_key, claims=claims)
@@ -223,7 +277,8 @@ def test_conversion_rechecks_exact_expiry_and_revocation(
         trusted_issuer=TrustedIssuerV1(
             "issuer.synthetic", "api.synthetic", "org.synthetic", "leviathan-ai", "test"
         ),
-        key_set=_Keys(synthetic_key[0]), revocations=revocations,
+        key_set=_Keys(synthetic_key[0]),
+        revocations=revocations,
         clock=lambda: moment[0],
     )
     token = _token(synthetic_key)
@@ -253,7 +308,8 @@ def test_conversion_rechecks_future_issue_skew_at_microsecond_boundary(
         trusted_issuer=TrustedIssuerV1(
             "issuer.synthetic", "api.synthetic", "org.synthetic", "leviathan-ai", "test"
         ),
-        key_set=_Keys(synthetic_key[0]), revocations=_Revocations(),
+        key_set=_Keys(synthetic_key[0]),
+        revocations=_Revocations(),
         clock=lambda: moment[0],
     )
     token = _token(
@@ -285,8 +341,10 @@ def test_conversion_rejects_clock_and_revocation_port_failure(
         (lambda: datetime(2026, 10, 5, 12), _Revocations()),
     ):
         verifier = PrincipalVerifier(
-            trusted_issuer=policy, key_set=_Keys(synthetic_key[0]),
-            revocations=revocations, clock=clock,
+            trusted_issuer=policy,
+            key_set=_Keys(synthetic_key[0]),
+            revocations=revocations,
+            clock=clock,
         )
         with pytest.raises(PrincipalVerificationError) as failure:
             verifier.to_trusted_principal(verified)
@@ -371,7 +429,9 @@ def test_exact_project_binding_between_verifiers(
         trusted_issuer=TrustedIssuerV1(
             "issuer.synthetic", "api.synthetic", "org.synthetic", "project.other", "test"
         ),
-        key_set=_Keys(synthetic_key[0]), revocations=_Revocations(), clock=lambda: NOW,
+        key_set=_Keys(synthetic_key[0]),
+        revocations=_Revocations(),
+        clock=lambda: NOW,
     )
     with pytest.raises(PrincipalVerificationError):
         other.to_trusted_principal(verified)
@@ -395,7 +455,9 @@ def test_parser_and_port_failures_do_not_chain_untrusted_data(
         trusted_issuer=TrustedIssuerV1(
             "issuer.synthetic", "api.synthetic", "org.synthetic", "leviathan-ai", "test"
         ),
-        key_set=FailingKeys(), revocations=_Revocations(), clock=lambda: NOW,
+        key_set=FailingKeys(),
+        revocations=_Revocations(),
+        clock=lambda: NOW,
     )
     with pytest.raises(PrincipalVerificationError) as port_failure:
         verifier.verify(_token(synthetic_key))

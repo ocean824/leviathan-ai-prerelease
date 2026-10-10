@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/leviathan.db"
     redis_url: str = "redis://localhost:6379/0"
     risk_lock_sha256: str = ""
+    # Public trust configuration for the private Site Worker -> API assertion.
+    worker_assertion_issuer: str = ""
+    worker_assertion_audience: str = ""
+    worker_assertion_jwks_json: str = ""
     # Desktop sets an absolute user-local path before importing the API.
     # Development defaults to project-local data/halt-state.sqlite3.
     halt_store_path: Path | None = None

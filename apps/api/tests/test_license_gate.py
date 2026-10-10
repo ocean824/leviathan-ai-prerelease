@@ -112,6 +112,8 @@ def test_closed_route_table_covers_catalog_actions_and_only_known_feature_ids() 
     table_paths = [path for path, _feature in ROUTE_FEATURES_V1]
     assert len(table_paths) == len(set(table_paths))
     assert {feature for _path, feature in ROUTE_FEATURES_V1} <= catalog_features
+    assert feature_for_path("/risk/halt") == "live_trading"
+    assert feature_for_path("/risk/halt/lift") == "live_trading"
 
 
 def test_grace_denies_mutations_with_fixed_content_free_response_without_reading_body() -> None:
@@ -174,17 +176,38 @@ def test_grace_allows_chart_ticket_as_a_charts_read_action() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    ["/risk/halt", "/mcp/halts", "/omega/kill", "/live-activation/disable"],
+    [
+        "/risk/halt",
+        "/mcp/halts",
+        "/omega/kill",
+        "/live-activation/disable",
+        "/orders/activations/revoke",
+        "/mt5/ea-host/v1/sessions/session-1/kill",
+    ],
 )
-def test_grace_allows_halt_and_live_disable_safety_actions(path: str) -> None:
+@pytest.mark.parametrize(
+    ("state", "features"),
+    [
+        ("VERIFIED_ONLINE", ""),
+        ("GRACE_READ_ONLY", ""),
+        ("EXPIRED", ""),
+        ("INACTIVE", ""),
+    ],
+)
+def test_safety_off_actions_are_not_blocked_by_license_or_feature(
+    path: str, state: str, features: str
+) -> None:
     middleware = LicenseGateMiddleware(
         _unused_app,
-        environ={
-            "LEVIATHAN_LICENSE_STATE": "GRACE_READ_ONLY",
-            "LEVIATHAN_LICENSE_FEATURES": "live_trading",
-        },
+        environ={"LEVIATHAN_LICENSE_STATE": state, "LEVIATHAN_LICENSE_FEATURES": features},
     )
     result = _run_request(middleware, path=path, method="POST")
+    assert result[0] == 204 and result[2] is True
+
+
+def test_halt_engage_is_available_when_no_license_configuration_is_present() -> None:
+    middleware = LicenseGateMiddleware(_unused_app, environ={})
+    result = _run_request(middleware, path="/risk/halt", method="POST")
     assert result[0] == 204 and result[2] is True
 
 
@@ -230,6 +253,32 @@ def test_online_feature_denial_and_entitled_route() -> None:
     )
     allowed_result = _run_request(allowed, path="/orders", method="POST")
     assert allowed_result[0] == 204 and allowed_result[2] is True
+
+
+def test_halt_lift_uses_per_user_live_entitlement_not_admin_role_feature() -> None:
+    admin_only = LicenseGateMiddleware(
+        _unused_app,
+        environ={
+            "LEVIATHAN_LICENSE_STATE": "VERIFIED_ONLINE",
+            "LEVIATHAN_LICENSE_FEATURES": "admin_console",
+        },
+    )
+    denied = _run_request(admin_only, path="/risk/halt/lift", method="POST")
+    assert denied[0] == 403
+    assert _body(denied) == {"code": "FEATURE_NOT_ENTITLED", "feature": "live_trading"}
+    assert denied[2] is False
+
+    entitled_user = LicenseGateMiddleware(
+        _unused_app,
+        environ={
+            "LEVIATHAN_LICENSE_STATE": "VERIFIED_ONLINE",
+            "LEVIATHAN_LICENSE_FEATURES": "live_trading",
+        },
+    )
+    lifted = _run_request(entitled_user, path="/risk/halt/lift", method="POST")
+    engaged = _run_request(entitled_user, path="/risk/halt", method="POST")
+    assert lifted[0] == engaged[0] == 204
+    assert lifted[2] is engaged[2] is True
 
 
 def test_unmapped_routes_pass_and_inactive_config_logs_only_one_fixed_marker(

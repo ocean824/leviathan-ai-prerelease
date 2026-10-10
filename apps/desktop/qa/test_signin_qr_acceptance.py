@@ -183,6 +183,7 @@ const confirmForm = new Form("totp-confirm-form", {
 confirmForm.fields.enrollment_code.value = "123456";
 const elements = {
   "signin-form": signInForm,
+  "google-signin": new Element("google-signin"),
   status: new Element("status"),
   "totp-enrollment": new Element("totp-enrollment"),
   "totp-uri": new Element("totp-uri"),

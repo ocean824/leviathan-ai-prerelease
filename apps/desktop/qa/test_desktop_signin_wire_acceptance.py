@@ -236,10 +236,12 @@ def test_enrollment_qr_is_rendered_and_cleared_after_confirmation() -> None:
     confirm_start = signin.index('confirmForm.addEventListener("submit"')
     confirm_end = signin.index("\n  });", confirm_start) + 6
     confirm = signin[confirm_start:confirm_end]
-    assert "await bridge.invoke(COMMANDS.enrollTotp" in confirm
-    assert confirm.index("await bridge.invoke(COMMANDS.enrollTotp") < confirm.index(
-        "clearEnrollmentMaterial()"
+    confirm_call = (
+        "await bridge.invoke(googleEnrollmentPending ? COMMANDS.googleEnrollTotp "
+        ": COMMANDS.enrollTotp, { code });"
     )
+    assert confirm_call in confirm
+    assert confirm.index(confirm_call) < confirm.index("clearEnrollmentMaterial()")
 
 
 def test_enrollment_qr_dom_flow_renders_then_clears() -> None:
@@ -256,6 +258,10 @@ const email = value("synthetic@example.test");
 const password = value("synthetic-password");
 const totpCode = value("");
 const enrollmentCode = value("123456");
+const googleButton = {
+  disabled: false,
+  addEventListener: (event, handler) => { submitHandlers.google = handler; },
+};
 const form = {
   hidden: false,
   querySelector: () => ({ disabled: false }),
@@ -274,6 +280,7 @@ const status = { textContent: "" };
 const qr = { children: [], replaceChildren(...children) { this.children = children; } };
 const nodes = new Map([
   ["signin-form", form], ["totp-confirm-form", confirmForm],
+  ["google-signin", googleButton],
   ["totp-enrollment", enrollment], ["totp-uri", uriNode],
   ["totp-secret", secretNode], ["totp-qr", qr], ["status", status],
 ]);
@@ -350,7 +357,9 @@ def test_sidecar_feature_env_is_bound_to_the_verified_or_cached_snapshot() -> No
     emit = license[emit_start:emit_end]
     assert "startup_unlock_allowed(view)" in emit
     assert "features: view.features.clone()" in emit
-    assert "let value = view.json()" in emit
+    assert re.search(r"let\s+mut\s+value\s*=\s*view\.json\(\)", emit)
+    assert '"principalId".to_owned()' in emit
+    assert '"entitlementDigest".to_owned()' in emit
 
     regression_start = license.index("fn forged_grace_event_cannot_consume_verified_online_proof")
     regression_end = license.index("\n    }", regression_start) + 6
@@ -380,9 +389,9 @@ def test_sidecar_feature_env_is_bound_to_the_verified_or_cached_snapshot() -> No
     assert re.search(r'payload\s*\.get\("features"\)', listener)
     assert "&features" in listener
     assert listener.index("consume_verified_online_unlock") < listener.index(
-        "sidecar_license_features = features"
+        "license::enabled_feature_csv(&features)"
     )
-    assert "enabled.then_some(name.as_str())" in listener
+    assert "let sidecar_license_features = license::enabled_feature_csv(&features)" in listener
     assert "let supervise_features = sidecar_license_features" in listener
     supervise_call_start = listener.index("supervise(")
     supervise_call_end = listener.index("startup_receiver,", supervise_call_start)
@@ -397,7 +406,11 @@ def test_sidecar_feature_env_is_bound_to_the_verified_or_cached_snapshot() -> No
     )
     assert "let mut command = Command::new(&executable);" in supervise
     assert 'std::env::set_var("LEVIATHAN_LICENSE_FEATURES"' not in main
-    assert '.join(",")' in listener
+    feature_csv_start = license.index("pub fn enabled_feature_csv(")
+    feature_csv_end = license.index("\n}", feature_csv_start) + 2
+    feature_csv = license[feature_csv_start:feature_csv_end]
+    assert "enabled.then_some(name.as_str())" in feature_csv
+    assert '.join(",")' in feature_csv
 
 
 def test_sidecar_feature_value_is_never_written_to_logs() -> None:

@@ -250,6 +250,8 @@ describe("independent CRED-UI-001b Live Trading acceptance", () => {
 
     fireEvent.change(keyId, { target: { value: credentialFixture.secrets.liveKeyId } });
     fireEvent.change(secretKey, { target: { value: credentialFixture.secrets.liveSecretKey } });
+    const accountId = within(form).getByLabelText("Account ID") as HTMLInputElement;
+    fireEvent.change(accountId, { target: { value: "SYNTHETIC-LIVE-ACCOUNT-001" } });
     fireEvent.change(confirmation, { target: { value: "LIVE" } });
     fireEvent.submit(form);
 
@@ -264,6 +266,7 @@ describe("independent CRED-UI-001b Live Trading acceptance", () => {
     expect(JSON.parse(String(livePut?.init?.body))).toEqual({
       key_id: credentialFixture.secrets.liveKeyId,
       secret_key: credentialFixture.secrets.liveSecretKey,
+      account_id: "SYNTHETIC-LIVE-ACCOUNT-001",
       confirm_environment: "LIVE",
     });
     expect(screen.getByLabelText("Live trading safety").textContent).toMatch(

@@ -27,6 +27,7 @@ from leviathan_core.risk.halt_store import HaltStore
 from leviathan_core.risk.policy import load_risk_policy_bytes
 
 if TYPE_CHECKING:
+    from leviathan_api.credential_connections import CredentialConnectionsRuntimeV1
     from leviathan_api.routers.orders import (
         OrderRuntime,
         PaperDispatchGate,
@@ -53,6 +54,7 @@ class AppState:
     dispatch_fence: _DispatchFence | None = None
     dispatch_gate: PaperDispatchGate | None = None
     ledger_integrity_key: LedgerIntegrityKey | None = None
+    credential_connections_runtime: CredentialConnectionsRuntimeV1 | None = None
 
 
 def build_app_state(

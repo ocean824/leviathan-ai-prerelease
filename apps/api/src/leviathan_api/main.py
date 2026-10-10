@@ -23,6 +23,15 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import leviathan_core
 from leviathan_api import __version__
+from leviathan_api.credential_connections import (
+    CredentialConnectionsRuntimeV1,
+    create_credential_connections_router,
+)
+from leviathan_api.auth.worker_assertion import (
+    WorkerAssertionError,
+    WorkerAssertionVerifier,
+    worker_assertion_error_response,
+)
 from leviathan_api.db import build_db
 from leviathan_api.live_activation_runtime import LazyLiveActivationGateV1
 from leviathan_api.middleware.license_gate import LicenseGateMiddleware
@@ -211,7 +220,10 @@ async def halt_store_failure(_request: Request, _exc: HaltStoreError) -> JSONRes
 
 
 def _is_credential_path(request: Request) -> bool:
-    return "/live-trading/credentials" in request.url.path
+    return any(
+        path in request.url.path
+        for path in ("/live-trading/credentials", "/connections/credentials")
+    )
 
 
 async def credential_error(_request: Request, exc: CredentialError) -> JSONResponse:
@@ -229,6 +241,16 @@ async def credential_error(_request: Request, exc: CredentialError) -> JSONRespo
         headers={"Cache-Control": "no-store"},
     )
 
+
+async def worker_assertion_error(
+    _request: Request, exc: Exception
+) -> JSONResponse:
+    status_code, content = worker_assertion_error_response(cast(WorkerAssertionError, exc))
+    return JSONResponse(
+        status_code=status_code,
+        content=content,
+        headers={"Cache-Control": "no-store"},
+    )
 
 async def credential_validation_error(request: Request, exc: Exception) -> JSONResponse:
     validation_error = cast(RequestValidationError, exc)
@@ -271,7 +293,10 @@ class CredentialBodyLimitMiddleware:
         if (
             scope["type"] != "http"
             or scope["method"] not in {"PUT", "DELETE"}
-            or "/live-trading/credentials" not in scope["path"]
+            or not any(
+                path in scope["path"]
+                for path in ("/live-trading/credentials", "/connections/credentials")
+            )
         ):
             await self.app(scope, receive, send)
             return
@@ -352,8 +377,14 @@ def create_app(
     *,
     order_runtime_factory: OrderRuntimeFactory | None = None,
     credential_store: CredentialStore | None = None,
+    credential_connections_runtime: CredentialConnectionsRuntimeV1 | None = None,
     runtime_mount_dependencies: RuntimeMountDependenciesV1 | None = None,
     wave35_mount_dependencies: Wave35MountDependenciesV1 | None = None,
+    desktop_operator_capability: str | None = None,
+    desktop_operator_port: int | None = None,
+    desktop_operator_profile: object | None = None,
+    desktop_operator_features: frozenset[str] = frozenset(),
+    worker_assertion_verifier: WorkerAssertionVerifier | None = None,
 ) -> FastAPI:
     """Build the API; a paper runtime can be injected only at startup."""
     application = FastAPI(
@@ -365,6 +396,8 @@ def create_app(
     )
     application.state.order_runtime_factory = order_runtime_factory
     application.state.credential_store = credential_store
+    application.state.worker_assertion_verifier = worker_assertion_verifier
+    application.state.credential_connections_runtime = credential_connections_runtime
     application.state.runtime_mount_dependencies = (
         runtime_mount_dependencies or RuntimeMountDependenciesV1()
     )
@@ -372,6 +405,7 @@ def create_app(
         settings = get_settings()
         application.state.wave35_mount_dependencies = Wave35MountDependenciesV1(
             credential_store=credential_store,
+            credential_connections_runtime=credential_connections_runtime,
             profile_id="default",
             credential_environment="LIVE" if settings.env == "live" else "PAPER",
         )
@@ -379,10 +413,32 @@ def create_app(
         application.state.wave35_mount_dependencies = replace(
             wave35_mount_dependencies,
             credential_store=credential_store,
+            credential_connections_runtime=(
+                credential_connections_runtime
+                or wave35_mount_dependencies.credential_connections_runtime
+            ),
+        )
+    elif (
+        credential_connections_runtime is not None
+        and wave35_mount_dependencies.credential_connections_runtime is None
+    ):
+        application.state.wave35_mount_dependencies = replace(
+            wave35_mount_dependencies,
+            credential_connections_runtime=credential_connections_runtime,
         )
     else:
         application.state.wave35_mount_dependencies = wave35_mount_dependencies
+    if application.state.credential_store is None:
+        connections_runtime = (
+            application.state.wave35_mount_dependencies.credential_connections_runtime
+        )
+        application.state.credential_store = (
+            connections_runtime.credential_store if connections_runtime is not None else None
+        )
     application.state.live_activation_gate = LazyLiveActivationGateV1()
+    credential_runtime_for_legacy_routes = (
+        application.state.wave35_mount_dependencies.credential_connections_runtime
+    )
     application.state.runtime_mount_status = RuntimeMountStatusV1(
         "RUNTIME_NOT_CONFIGURED", "RUNTIME_NOT_CONFIGURED"
     )
@@ -408,9 +464,26 @@ def create_app(
     application.middleware("http")(runtime_mount_gate)
     application.add_middleware(CredentialBodyLimitMiddleware)
     application.add_middleware(LicenseGateMiddleware)
+    if desktop_operator_capability is not None or desktop_operator_port is not None:
+        if desktop_operator_capability is None or desktop_operator_port is None:
+            raise ValueError("desktop operator capability and port must be provided together")
+        from leviathan_api.auth import OperatorPrincipalMiddleware
+
+        # The desktop path reuses the same principal source used by W35 and chart
+        # WebSockets. The optional profile is derived only from shell launch env;
+        # an absent profile leaves requests anonymous and privileged routes fail closed.
+        application.add_middleware(
+            OperatorPrincipalMiddleware,
+            capability=desktop_operator_capability,
+            port=desktop_operator_port,
+            profile=desktop_operator_profile,
+            features=desktop_operator_features,
+            allow_anonymous=desktop_operator_profile is None,
+        )
     application.middleware("http")(wave35_mount_gate)
     application.add_exception_handler(HaltStoreError, halt_store_failure)  # type: ignore[arg-type]
     application.add_exception_handler(CredentialError, credential_error)  # type: ignore[arg-type]
+    application.add_exception_handler(WorkerAssertionError, worker_assertion_error)
     application.add_exception_handler(RequestValidationError, credential_validation_error)
     for item in (
         risk.router,
@@ -418,6 +491,11 @@ def create_app(
         journal.router,
         genomes.router,
         credentials.router,
+        create_credential_connections_router(
+            credential_runtime_for_legacy_routes,
+            include_connections=False,
+            include_legacy=True,
+        ),
         omega.router,
         # Deployment-configured, fail-closed routers remain registered when unconfigured.
         omega_tasks.router,

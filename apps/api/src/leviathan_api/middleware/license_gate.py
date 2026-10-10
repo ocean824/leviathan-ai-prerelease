@@ -97,7 +97,7 @@ ROUTE_FEATURES_V1: Final[tuple[tuple[str, str], ...]] = (
     ("/v1/signup/webhook", "admin_console"),
     ("/data-sources", "data_sources"),
     ("/risk/halt", "live_trading"),
-    ("/risk/halt/lift", "admin_console"),
+    ("/risk/halt/lift", "live_trading"),
     ("/md/chart/ticket", "charts"),
 )
 
@@ -137,12 +137,18 @@ FEATURE_ROUTE_FAMILIES_V1: Final = MappingProxyType(
 _GRACE_WRITE_ALLOWLIST: Final = frozenset(
     {
         ("POST", "/md/chart/ticket"),
+    }
+)
+_SAFETY_OFF_METHOD_PATHS: Final = frozenset(
+    {
         ("POST", "/risk/halt"),
         ("POST", "/mcp/halts"),
         ("POST", "/omega/kill"),
         ("POST", "/live-activation/disable"),
+        ("POST", "/orders/activations/revoke"),
     }
 )
+_EA_SESSION_KILL_PATH = re.compile(r"/mt5/ea-host/v1/sessions/[^/]+/kill", re.ASCII)
 _LIVE_ENABLE_PATHS: Final = frozenset({"/live-activation/enable", "/orders/activations"})
 _TEMPLATE_PARAMETER = re.compile(r"\{[^{}]+\}")
 
@@ -171,6 +177,13 @@ def feature_for_path(path: str) -> str | None:
         if pattern.fullmatch(path) is not None:
             return feature
     return None
+
+
+def _is_safety_off_request(method: str, path: str) -> bool:
+    """License state and feature entitlements cannot prevent a safety stop."""
+    return (method, path) in _SAFETY_OFF_METHOD_PATHS or (
+        method == "POST" and _EA_SESSION_KILL_PATH.fullmatch(path) is not None
+    )
 
 
 def _parse_features(raw: object) -> frozenset[str] | None:
@@ -261,6 +274,12 @@ class LicenseGateMiddleware:
             await self.app(scope, receive, send)
             return
         method = method.upper()
+
+        # These actions only stop or revoke activity. Their route handlers still
+        # enforce the request's own principal, scope, and loopback security checks.
+        if _is_safety_off_request(method, path):
+            await self.app(scope, receive, send)
+            return
 
         if self.partial and method not in _SAFE_METHODS:
             await _deny(send)

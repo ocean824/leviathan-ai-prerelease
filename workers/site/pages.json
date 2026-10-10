@@ -1,0 +1,12 @@
+[
+  { "key": "home", "path": "/", "nav": "Overview", "title": "Trading and analysis platform", "heading": "Research, analysis and trading workflows in one desktop platform", "description": "Leviathan AI is a Windows and macOS desktop platform for market research, analysis, risk workflows and user-directed trading." },
+  { "key": "app", "path": "/app", "nav": "Web app", "title": "Web app coming soon", "heading": "Web app coming soon", "description": "The Leviathan AI web app is planned to share accounts with the desktop app. Sign in with the same account when it becomes available." },
+  { "key": "privacy", "path": "/privacy", "nav": "Privacy", "title": "Privacy policy", "heading": "Privacy policy", "description": "How Leviathan AI handles account, licensing, payment, connection, prompt and diagnostic information." },
+  { "key": "terms", "path": "/terms", "nav": "Terms", "title": "Terms of service", "heading": "Terms of service", "description": "Terms for using the Leviathan AI desktop platform and related services." },
+  { "key": "contact", "path": "/contact", "nav": "Contact", "title": "Contact", "heading": "Contact Leviathan AI", "description": "Support and legal contact details for Leviathan AI." },
+  { "key": "risk-disclosure", "path": "/risk-disclosure", "nav": "Risk disclosure", "title": "Trading risk disclosure", "heading": "Trading involves substantial risk", "description": "Important risks of trading securities, leveraged products, futures, cryptoassets and prediction markets." },
+  { "key": "data-deletion", "path": "/data-deletion", "nav": "Data deletion", "title": "Data deletion", "heading": "Request deletion of your account data", "description": "Steps to disconnect services and request deletion of Leviathan AI account data." },
+  { "key": "security", "path": "/security", "nav": "Security", "title": "Security", "heading": "Security and credential handling", "description": "How Leviathan AI is designed to protect account and connection information." },
+  { "key": "cookies", "path": "/cookies", "nav": "Cookies", "title": "Cookies", "heading": "Cookies and similar technologies", "description": "Cookie and tracking practices for the Leviathan AI public website." },
+  { "key": "subprocessors", "path": "/subprocessors", "nav": "Subprocessors", "title": "Subprocessors", "heading": "Service providers and subprocessors", "description": "Third-party providers that may process information for Leviathan AI." }
+]

@@ -54,9 +54,16 @@ SEPARATOR_RE = re.compile(r"^\s*[=\-_*]{4,}\s*$")
 FIELD_RE = re.compile(r"^([A-Za-z][A-Za-z0-9 _/-]{0,39}):\s*(.*)$")
 DESIGNATIONS = {
     "DATABENTO": ("DATABENTO", "development"),
-    "FRED": ("FRED", "development"),
-    "COPERNICUS": ("COPERNICUS", "development"),
     "MASSIVE": ("MASSIVE", "development"),
+    "UNUSUAL_WHALES": ("UNUSUAL_WHALES", "development"),
+    "FRED": ("FRED", "development"),
+    "BEA": ("BEA", "development"),
+    "EIA": ("EIA", "development"),
+    "TRADING_ECONOMICS": ("TRADING_ECONOMICS", "development"),
+    "CENSUS": ("CENSUS", "development"),
+    "USDA": ("USDA", "development"),
+    "QUIVER": ("QUIVER", "development"),
+    "COPERNICUS": ("COPERNICUS", "development"),
     "POLYGON": ("MASSIVE", "development"),
     "KALSHI_MARKET_DATA": ("KALSHI_MARKET_DATA", "development"),
     "POLYMARKET_MARKET_DATA": ("POLYMARKET_MARKET_DATA", "development"),
@@ -307,7 +314,7 @@ def _preflight_replaceable(path: Path, code: str) -> None:
     first: Path | None = None
     second: Path | None = None
     try:
-        if os.name != "nt":
+        if sys.platform != "win32":
             raise OSError
         _deny_reparse(path)
         kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)  # noqa: B009
@@ -781,6 +788,108 @@ def import_plan(
             bindings=bindings,
             backup_root=backup_root,
         )
+
+
+def remove_project_secret(
+    factory_root: Path, name: str, environment: str, *, bindings: Path
+) -> None:
+    """Transactionally remove a registered project secret without materializing it.
+
+    This is the write-only Connections counterpart to ``import_plan``. The
+    transaction snapshots only encrypted ciphertext and metadata; secret bytes
+    are never written to a temporary file.
+    """
+    from leviathan_vault.client import PROJECT_SCOPE
+
+    try:
+        validate_identity(name, PROJECT_SCOPE, environment)
+        if environment not in PROJECT_ENVIRONMENTS:
+            raise ImportErrorCode("IMPORT_FORMAT_DENIED")
+        if not bindings.is_file():
+            raise ImportErrorCode("IMPORT_BINDINGS_FAILED")
+        with import_lock(factory_root) as backup_root:
+            recover_pending(factory_root, bindings, backup_root)
+            registry_path = factory_root / "registries" / "SECRET_REGISTRY.yaml"
+            _deny_reparse(registry_path)
+            _deny_reparse(bindings)
+            try:
+                registry = json.loads(registry_path.read_text(encoding="utf-8-sig"))
+                binding_doc = json.loads(bindings.read_text(encoding="utf-8-sig"))
+                entries = registry["entries"]
+                binding_rows = binding_doc["bindings"]
+                aliases = binding_doc["aliases"]
+                if not all(type(rows) is list for rows in (entries, binding_rows, aliases)):
+                    raise ValueError
+                matching = [
+                    entry
+                    for entry in entries
+                    if type(entry) is dict
+                    and entry.get("name") == name
+                    and entry.get("scope") == PROJECT_SCOPE
+                    and entry.get("environment") == environment
+                ]
+                if len(matching) != 1:
+                    raise ValueError
+                removed = {(name, PROJECT_SCOPE, environment)}
+                changed = True
+                while changed:
+                    changed = False
+                    for alias in aliases:
+                        if type(alias) is not dict or type(alias.get("target")) is not dict:
+                            raise ValueError
+                        target = alias["target"]
+                        target_key = _binding_key(target, project_only=True)
+                        source_key = _binding_key(alias, project_only=True)
+                        if target_key in removed and source_key not in removed:
+                            removed.add(source_key)
+                            changed = True
+                affected = [
+                    (item_name, item_scope, item_env)
+                    for item_name, item_scope, item_env in sorted(removed)
+                ]
+                transaction = ImportTransaction.begin(factory_root, bindings, backup_root, affected)
+                try:
+                    registry["entries"] = [
+                        entry
+                        for entry in entries
+                        if (entry.get("name"), entry.get("scope"), entry.get("environment"))
+                        not in removed
+                    ]
+                    binding_doc["bindings"] = [
+                        row
+                        for row in binding_rows
+                        if (row.get("name"), row.get("scope"), row.get("environment"))
+                        not in removed
+                    ]
+                    binding_doc["aliases"] = [
+                        alias
+                        for alias in aliases
+                        if (alias.get("name"), alias.get("scope"), alias.get("environment"))
+                        not in removed
+                    ]
+                    for item_name, item_scope, item_env in affected:
+                        secret_path = (
+                            factory_root
+                            / ".local"
+                            / "secrets"
+                            / (f"{item_scope}--{item_env}--{item_name}.dpapi")
+                        )
+                        _deny_reparse(secret_path)
+                        secret_path.unlink(missing_ok=True)
+                    _atomic_json(registry_path, registry)
+                    _atomic_json(bindings, binding_doc)
+                    transaction.commit()
+                except BaseException:
+                    transaction.rollback()
+                    raise
+            except ImportErrorCode:
+                raise
+            except Exception:
+                raise ImportErrorCode("SECRET_REMOVE_FAILED") from None
+    except (VaultError, TransactionError, ImportErrorCode):
+        raise
+    except Exception:
+        raise ImportErrorCode("SECRET_REMOVE_FAILED") from None
 
 
 def _default_factory_root() -> Path:

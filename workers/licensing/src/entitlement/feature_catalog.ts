@@ -140,7 +140,7 @@ export const API_FEATURE_ACTIONS_V1: readonly ApiFeatureActionV1[] = Object.free
   { action_id: "POST /md/chart/ticket", method: "POST", path: "/md/chart/ticket", feature_key: "charts", classification: "READ", registration: "MOUNTED" },
   { action_id: "GET /data-sources", method: "GET", path: "/data-sources", feature_key: "data_sources", classification: "READ", registration: "MOUNTED" },
   { action_id: "POST /risk/halt", method: "POST", path: "/risk/halt", feature_key: "live_trading", classification: "SAFETY_OFF", registration: "MOUNTED" },
-  { action_id: "POST /risk/halt/lift", method: "POST", path: "/risk/halt/lift", feature_key: "admin_console", classification: "WRITE", registration: "MOUNTED" },
+  { action_id: "POST /risk/halt/lift", method: "POST", path: "/risk/halt/lift", feature_key: "live_trading", classification: "WRITE", registration: "MOUNTED" },
 ] satisfies ApiFeatureActionV1[]).map((action) => Object.freeze(action)));
 
 const REQUIREMENTS: Readonly<Record<FeatureKeyV1, readonly string[]>> = Object.freeze({

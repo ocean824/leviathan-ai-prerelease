@@ -14,6 +14,7 @@ from leviathan_core.decision_fusion.proposal import (
     DecisionFrozenError,
     DecisionInputError,
     DecisionProposalV1,
+    _content_free_frozen,
     compose,
 )
 from leviathan_core.numeric import canonical_json
@@ -56,6 +57,7 @@ def _guard_new_trace(record: object) -> None:
     raise DecisionInputError("UNISSUED_TRACE")
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True)
 class DecisionFixtureV1(_FrozenRecord):
     fixture_id: str
@@ -80,6 +82,7 @@ class DecisionFixtureV1(_FrozenRecord):
                  "INVALID_VERSION")
 
 
+@_content_free_frozen
 @dataclass(frozen=True, slots=True, weakref_slot=True, init=False)
 class DecisionTraceV1(_FrozenRecord):
     fixture_id: str

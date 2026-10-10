@@ -1,0 +1,11 @@
+<ownershipDocument>
+  <nonDerivativeTable>
+    <nonDerivativeTransaction>
+      <securityTitle><value>Common Stock</value></securityTitle>
+      <transactionDate><value>2026-10-08</value></transactionDate>
+      <transactionCode>P</transactionCode>
+      <transactionShares><value>10</value></transactionShares>
+      <transactionPricePerShare><value>12.50</value></transactionPricePerShare>
+    </nonDerivativeTransaction>
+  </nonDerivativeTable>
+</ownershipDocument>

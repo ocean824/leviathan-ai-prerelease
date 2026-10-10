@@ -1,4 +1,4 @@
-﻿"""Independent acceptance for CL-SEC002-SEAL issued authorization values."""
+"""Independent acceptance for CL-SEC002-SEAL issued authorization values."""
 
 from __future__ import annotations
 
@@ -29,9 +29,7 @@ from leviathan_core.security.authz_models import (
 from leviathan_core.security.authz_policy import authorize
 
 _AT = datetime(2026, 10, 6, 12, tzinfo=UTC)
-_UNIFORM_DENY = AuthorizationExplanationV1(
-    None, EffectV1.DENY, ReasonCodeV1.NOT_AUTHORIZED
-)
+_UNIFORM_DENY = AuthorizationExplanationV1(None, EffectV1.DENY, ReasonCodeV1.NOT_AUTHORIZED)
 _PRINCIPAL_FIELDS = (
     "principal_id",
     "project_id",
@@ -41,6 +39,7 @@ _PRINCIPAL_FIELDS = (
     "portfolio",
     "strategy",
     "break_glass",
+    "device_id",
 )
 
 
@@ -83,9 +82,7 @@ def _authorization_inputs() -> tuple[
         not_before=_AT - timedelta(minutes=1),
         not_after=_AT + timedelta(minutes=1),
     )
-    policy = AuthorizationPolicyV1(
-        "v1", "project.acceptance", _AT + timedelta(hours=1), (rule,)
-    )
+    policy = AuthorizationPolicyV1("v1", "project.acceptance", _AT + timedelta(hours=1), (rule,))
     return action, resource, context, policy
 
 
@@ -106,9 +103,7 @@ def test_hand_built_principal_is_unissued_and_authorize_denies_uniformly() -> No
 
 def test_hand_built_allow_decision_is_unissued_and_cannot_pass_require() -> None:
     forged = AuthorizationDecisionV1(
-        AuthorizationExplanationV1(
-            None, EffectV1.ALLOW, ReasonCodeV1.AUTHORIZED
-        )
+        AuthorizationExplanationV1(None, EffectV1.ALLOW, ReasonCodeV1.AUTHORIZED)
     )
 
     assert forged.allowed
@@ -139,4 +134,3 @@ def test_non_decision_values_are_not_issued(forged: object) -> None:
     assert not is_authorization_decision(forged)
     with pytest.raises(AuthorizationModelError):
         require_authorization_decision(forged)
-

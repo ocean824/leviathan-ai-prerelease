@@ -35,41 +35,46 @@ def test_reason_validation_rejects_free_text_without_engaging() -> None:
         assert client.get("/risk/status").json()["active_halts"] == []
 
 
-def test_reason_validation_rejects_unknown_lift_without_mutation() -> None:
-    with TestClient(app) as client:
-        engaged = client.post("/risk/halt", json={"reason": "operator_hold"})
-        assert engaged.status_code == 200
-        response = client.post(
-            "/risk/halt/lift", json={"reason": "PRIVATE_MARKER arbitrary reason"}
-        )
-        assert response.status_code == 422
-        assert response.json() == {"detail": "INVALID_HALT_REASON"}
-        assert "PRIVATE_MARKER" not in response.text
-        assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
+def test_reason_validation_rejects_unknown_lift_without_mutation(
+    entitled_desktop_lift_client,
+) -> None:
+    client, headers = entitled_desktop_lift_client
+    engaged = client.post("/risk/halt", json={"reason": "operator_hold"})
+    assert engaged.status_code == 200
+    response = client.post(
+        "/risk/halt/lift", json={"reason": "PRIVATE_MARKER arbitrary reason"}, headers=headers
+    )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "INVALID_HALT_REASON"}
+    assert "PRIVATE_MARKER" not in response.text
+    assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
 
 
-def test_operator_note_uses_safe_label_grammar_and_is_not_persisted() -> None:
-    with TestClient(app) as client:
-        response = client.post(
-            "/risk/halt", json={"reason": "operator_hold", "note": "Desk Review2"}
-        )
-        assert response.status_code == 200
-        assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
+def test_operator_note_uses_safe_label_grammar_and_is_not_persisted(
+    entitled_desktop_lift_client,
+) -> None:
+    client, headers = entitled_desktop_lift_client
+    response = client.post("/risk/halt", json={"reason": "operator_hold", "note": "Desk Review2"})
+    assert response.status_code == 200
+    assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
 
-        rejected = client.post(
-            "/risk/halt/lift",
-            json={"reason": "operator_hold", "note": "token=PRIVATE_MARKER"},
-        )
-        assert rejected.status_code == 422
-        assert rejected.json() == {"detail": "INVALID_HALT_NOTE"}
-        assert "PRIVATE_MARKER" not in rejected.text
-        malformed = client.post(
-            "/risk/halt/lift", json={"reason": "operator_hold", "note": {"x": "PRIVATE_MARKER"}}
-        )
-        assert malformed.status_code == 422
-        assert malformed.json() == {"detail": "INVALID_HALT_NOTE"}
-        assert "PRIVATE_MARKER" not in malformed.text
-        assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
+    rejected = client.post(
+        "/risk/halt/lift",
+        json={"reason": "operator_hold", "note": "token=PRIVATE_MARKER"},
+        headers=headers,
+    )
+    assert rejected.status_code == 422
+    assert rejected.json() == {"detail": "INVALID_HALT_NOTE"}
+    assert "PRIVATE_MARKER" not in rejected.text
+    malformed = client.post(
+        "/risk/halt/lift",
+        json={"reason": "operator_hold", "note": {"x": "PRIVATE_MARKER"}},
+        headers=headers,
+    )
+    assert malformed.status_code == 422
+    assert malformed.json() == {"detail": "INVALID_HALT_NOTE"}
+    assert "PRIVATE_MARKER" not in malformed.text
+    assert client.get("/risk/status").json()["active_halts"] == ["operator_hold"]
 
 
 def test_dynamic_reason_requires_exact_known_prefix_and_sha256() -> None:
@@ -97,7 +102,7 @@ def test_public_engage_rejects_dynamic_omega_keys() -> None:
 
 
 def test_active_legacy_reason_can_only_be_lifted_and_is_logged_without_reason(
-    monkeypatch,
+    monkeypatch, entitled_desktop_lift_client
 ) -> None:
     legacy_reasons = (
         "operator_test",
@@ -112,40 +117,42 @@ def test_active_legacy_reason_can_only_be_lifted_and_is_logged_without_reason(
         lambda event, **fields: observed.append((event, fields)),
     )
 
-    with TestClient(app) as client:
-        halts = client.app.state.leviathan.halts
-        for reason in legacy_reasons:
-            # Simulate a reason already present in the durable authority before
-            # the closed vocabulary was deployed.
-            halts.engage(reason)
-            rejected_engage = client.post("/risk/halt", json={"reason": reason})
-            assert rejected_engage.status_code == 422
-            assert rejected_engage.json() == {"detail": "INVALID_HALT_REASON"}
-            assert client.get("/risk/status").json()["active_halts"] == [reason]
+    client, headers = entitled_desktop_lift_client
+    halts = client.app.state.leviathan.halts
+    for reason in legacy_reasons:
+        # Simulate a reason already present in the durable authority before
+        # the closed vocabulary was deployed.
+        halts.engage(reason)
+        rejected_engage = client.post("/risk/halt", json={"reason": reason})
+        assert rejected_engage.status_code == 422
+        assert rejected_engage.json() == {"detail": "INVALID_HALT_REASON"}
+        assert client.get("/risk/status").json()["active_halts"] == [reason]
 
-            lifted = client.post("/risk/halt/lift", json={"reason": reason})
-            assert lifted.status_code == 200
-            assert lifted.json() == {"halted": False, "active_halts": []}
-            assert reason not in lifted.text
+        lifted = client.post("/risk/halt/lift", json={"reason": reason}, headers=headers)
+        assert lifted.status_code == 200
+        assert lifted.json() == {"halted": False, "active_halts": []}
+        assert reason not in lifted.text
 
-        assert observed == [
-            ("halt_legacy_reason_lift", {"code": "LEGACY_REASON_LIFT"})
-        ] * len(legacy_reasons)
+    assert observed == [("halt_legacy_reason_lift", {"code": "LEGACY_REASON_LIFT"})] * len(
+        legacy_reasons
+    )
 
 
-def test_inactive_legacy_lift_has_same_fixed_error_as_unknown_lift() -> None:
-    with TestClient(app) as client:
-        unknown = client.post(
-            "/risk/halt/lift", json={"reason": "unknown legacy value"}
-        )
-        assert unknown.status_code == 422
-        assert unknown.json() == {"detail": "INVALID_HALT_REASON"}
+def test_inactive_legacy_lift_has_same_fixed_error_as_unknown_lift(
+    entitled_desktop_lift_client,
+) -> None:
+    client, headers = entitled_desktop_lift_client
+    unknown = client.post(
+        "/risk/halt/lift", json={"reason": "unknown legacy value"}, headers=headers
+    )
+    assert unknown.status_code == 422
+    assert unknown.json() == {"detail": "INVALID_HALT_REASON"}
 
-        client.app.state.leviathan.halts.engage("inactive legacy value")
-        client.app.state.leviathan.halts.lift_committed("inactive legacy value")
-        inactive = client.post(
-            "/risk/halt/lift", json={"reason": "inactive legacy value"}
-        )
-        assert inactive.status_code == unknown.status_code
-        assert inactive.json() == unknown.json()
-        assert client.app.state.leviathan.halts.active == ()
+    client.app.state.leviathan.halts.engage("inactive legacy value")
+    client.app.state.leviathan.halts.lift_committed("inactive legacy value")
+    inactive = client.post(
+        "/risk/halt/lift", json={"reason": "inactive legacy value"}, headers=headers
+    )
+    assert inactive.status_code == unknown.status_code
+    assert inactive.json() == unknown.json()
+    assert client.app.state.leviathan.halts.active == ()

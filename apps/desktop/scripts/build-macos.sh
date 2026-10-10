@@ -34,18 +34,9 @@ if [[ "$skip_updater_signing" != "1" && -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; 
   exit 2
 fi
 if [[ "$skip_updater_signing" == "1" ]]; then
-  export TAURI_CONFIG="$(python3 - <<'PY'
-import json
-import os
-
-config = json.loads(os.environ.get("TAURI_CONFIG") or "{}")
-bundle = config.setdefault("bundle", {})
-if not isinstance(bundle, dict):
-    raise ValueError("TAURI_CONFIG bundle must be an object")
-bundle["createUpdaterArtifacts"] = False
-print(json.dumps(config, separators=(",", ":")))
-PY
-)"
+  tauri_configs=(--config tauri.macos.conf.json --config tauri.macos.unsigned.conf.json)
+else
+  tauri_configs=(--config tauri.macos.conf.json)
 fi
 
 cd "$repo/apps/terminal"
@@ -83,7 +74,7 @@ for size in 16 32 128 256 512; do
 done
 iconutil -c icns "$iconset" -o "$desktop/src-tauri/icons/icon.icns"
 cd "$desktop/src-tauri"
-npx --yes '@tauri-apps/cli@2.12.0' build --target "$triple" --config tauri.macos.conf.json
+npx --yes '@tauri-apps/cli@2.12.0' build --target "$triple" "${tauri_configs[@]}"
 
 version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' "$desktop/src-tauri/tauri.conf.json")"
 bundle="$desktop/src-tauri/target/$triple/release/bundle/macos"

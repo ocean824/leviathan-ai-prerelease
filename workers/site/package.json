@@ -1,0 +1,12 @@
+{
+  "name": "@leviathan/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:draft": "node scripts/build.mjs --allow-incomplete",
+    "check:links": "node scripts/check-links.mjs",
+    "test": "npm run build:draft && vitest run"
+  },
+  "devDependencies": { "vitest": "4.1.11" }
+}

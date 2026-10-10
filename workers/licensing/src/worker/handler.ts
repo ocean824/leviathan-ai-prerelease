@@ -15,6 +15,7 @@ import { signupRoutes } from "../signup/routes.js";
 import type { SignupDependenciesV1 } from "../signup/models.js";
 import { authApiRoutes } from "../auth_api/routes.js";
 import type { AuthApiDependenciesV1 } from "../auth_api/routes.js";
+import { googleAuthRoutes, type GoogleAuthDependenciesV1 } from "../google_auth/routes.js";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const UINT = /^(0|[1-9][0-9]{0,63})$/;
@@ -125,6 +126,8 @@ export interface LicenseWorkerDependenciesV1 {
   readonly signupApi?: SignupDependenciesV1;
   /** Optional role-agnostic desktop session routes; missing ports fail closed. */
   readonly authApi?: AuthApiDependenciesV1;
+  /** Optional Google OIDC route set; missing config fails closed. */
+  readonly googleAuthApi?: GoogleAuthDependenciesV1;
 }
 
 export type LicenseWorkerErrorCodeV1 =
@@ -497,6 +500,10 @@ export function createLicenseWorkerV1(dependencies: LicenseWorkerDependenciesV1)
       // by adminApiRoutes. The LIC-004 license route and unimplemented admin
       // webhook path stay on the core 404/license dispatch. Signup and auth are
       // exact route surfaces; unknown nested paths remain 404s.
+      if (/^\/v1\/auth\/google\//.test(url.pathname)) {
+        return (await googleAuthRoutes(request, dependencies.googleAuthApi))
+          ?? errorResponse("NOT_FOUND", requestId, currentObservedAt(), 404);
+      }
       const delegated = /^\/v1\/(?:(admin)(?!\/(?:license|webhook)(?:\/|$))(?:\/|$)|(signup\/(?:checkout|webhook|success|cancel))$|(auth\/session(?:\/totp\/(?:enroll|confirm))?)$)/.exec(url.pathname);
       if (delegated?.[3]) {
         return (await authApiRoutes(request, dependencies.authApi))

@@ -29,6 +29,7 @@ const PROVIDERS: readonly ProviderDefinition[] = [
     fields: [
       { name: "key_id", label: "Key ID", secret: true },
       { name: "secret_key", label: "Secret key", secret: true },
+      { name: "account_id", label: "Account ID" },
     ],
   },
   {
@@ -266,6 +267,9 @@ function CredentialEnvironmentForm({
           }
           body.host = value;
         } else if (field.name === "account_id" || field.name === "server" || field.name === "login") {
+          if (field.name === "account_id" && provider === "ALPACA" && !isLive && !value.trim()) {
+            continue;
+          }
           if (!value.trim() || value.length > 256) {
             setFeedback({ kind: "error", message: `Enter a valid ${field.label.toLowerCase()}.` });
             return;

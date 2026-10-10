@@ -22,7 +22,6 @@ const ERROR_TEXT: Record<LiveActivationErrorCode, string> = {
   INVALID_QUERY: "The status request was invalid.",
   INVALID_REQUEST: "The request could not be verified.",
   CONFIRMATION_REQUIRED: "Type the exact LIVE confirmation phrase.",
-  OWNER_REQUIRED: "Only the account owner can enable LIVE.",
   HALT_ACTIVE: "HALT is active. LIVE cannot be enabled.",
   HALT_STATUS_UNAVAILABLE: "HALT status is unavailable. LIVE is blocked.",
   ENTITLEMENT_UNVERIFIED: "Account entitlement could not be verified.",
@@ -250,7 +249,7 @@ export function LiveActivationView({ fetcher = fetch, clock = Date.now }: LiveAc
 
         <section aria-label="Enable LIVE">
           <h3>Enable LIVE</h3>
-          <p>Only the account owner may enable LIVE. Type the exact confirmation phrase to proceed.</p>
+          <p>Only the signed-in holder of this account may enable LIVE. Type the exact confirmation phrase to proceed.</p>
           <label htmlFor="live-confirmation">Confirmation phrase</label>
           <input
             id="live-confirmation"

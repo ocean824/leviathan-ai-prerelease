@@ -480,6 +480,25 @@ class LazyLiveActivationGateV1:
         except Exception:
             return
 
+    def deactivate_account_checked(self, organization_id: str, account_id: str) -> None:
+        """Invalidate LIVE evidence or raise a fixed failure for write-before-mutate flows.
+
+        The legacy ``deactivate_account`` deliberately keeps its no-op/swallow
+        behavior for existing callers. Credential rotation uses this checked
+        seam so it cannot persist a changed credential after a failed revoke.
+        """
+        with self._lock:
+            projection = self._projection
+        if projection is None:
+            raise RuntimeError("LIVE_ACTIVATION_UNAVAILABLE")
+        deactivate = getattr(projection, "deactivate_account", None)
+        if not callable(deactivate):
+            raise RuntimeError("LIVE_ACTIVATION_UNAVAILABLE")
+        try:
+            deactivate(organization_id, account_id)
+        except Exception:
+            raise RuntimeError("LIVE_ACTIVATION_UNAVAILABLE") from None
+
 
 class DeniedLiveActivationPortsV1:
     """Return no unsupported account evidence while preserving real HALT reads."""

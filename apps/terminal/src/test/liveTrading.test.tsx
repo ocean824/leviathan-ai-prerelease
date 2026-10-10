@@ -222,6 +222,35 @@ describe("Live Trading credential configurations", () => {
     expect(document.body.textContent).not.toContain(SECRET);
   });
 
+  it("requires the Alpaca account identity for a LIVE credential write", async () => {
+    const requests = mockCredentialApi();
+    openLiveTrading();
+
+    const form = screen.getByRole("form", { name: "Alpaca LIVE credential form" });
+    fireEvent.change(within(form).getByLabelText("Key ID"), {
+      target: { value: "SYNTHETIC-alpaca-key-0001" },
+    });
+    fireEvent.change(within(form).getByLabelText("Secret key"), {
+      target: { value: "SYNTHETIC-alpaca-secret-0001" },
+    });
+    fireEvent.change(within(form).getByLabelText("Account ID"), {
+      target: { value: "SYNTHETIC-alpaca-account-0001" },
+    });
+    fireEvent.change(within(form).getByLabelText("Type LIVE to confirm"), {
+      target: { value: "LIVE" },
+    });
+
+    fireEvent.submit(form);
+
+    expect(await within(form).findByText(/Configuration saved/)).toBeTruthy();
+    const put = requests.find((request) => request.init?.method === "PUT");
+    expect(put?.url).toBe(`${ENDPOINT}/ALPACA/LIVE/default`);
+    expect(JSON.parse(String(put?.init?.body))).toMatchObject({
+      account_id: "SYNTHETIC-alpaca-account-0001",
+      confirm_environment: "LIVE",
+    });
+  });
+
   it("mirrors the closed server ID syntax and rejects reserved MCP IDs", async () => {
     const requests = mockCredentialApi();
     openLiveTrading();

@@ -46,6 +46,8 @@ EXPECTED_TOOL_IDS = {
     "genomes.list",
     "knowledge.archive.search",
     "connections.status.read",
+    "connections.credentials.status.read",
+    "connections.credentials.test",
     "data_sources.status.read",
     "risk.status.read",
     "ea.templates.list",
@@ -185,6 +187,27 @@ def test_registry_rejects_genomes_create_mutated_into_read_capability() -> None:
     )
     with pytest.raises(ValidationError):
         ChatToolRegistryV1(revision=registry.revision, entries=entries)
+
+
+def test_credential_chat_tools_are_read_only_and_reject_secret_arguments() -> None:
+    tool_id, arguments = _parse_proposal(
+        ChatToolProposalV1(
+            name="connections.credentials.test",
+            arguments_json='{"provider":"ibkr","environment":"PAPER","profile_id":"default"}',
+        )
+    )
+    assert tool_id == "connections.credentials.test"
+    assert arguments == {"provider": "ibkr", "environment": "PAPER", "profile_id": "default"}
+    with pytest.raises(ChatToolBridgeError):
+        _parse_proposal(
+            ChatToolProposalV1(
+                name="connections.credentials.test",
+                arguments_json=(
+                    '{"provider":"ibkr","environment":"PAPER",'
+                    '"profile_id":"default","secret":"SYNTHETIC_SENTINEL"}'
+                ),
+            )
+        )
 
 
 def test_new_proposal_schemas_are_strict_and_denied_tools_are_content_free() -> None:

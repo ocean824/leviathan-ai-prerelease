@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import BinaryIO, Literal, Protocol
 
 from pydantic import field_validator
 
@@ -167,9 +169,26 @@ def execution_inputs_sha256(spec: ReplayRunSpec) -> str:
 
 def _read_bounded_input(path: Path) -> bytes | None:
     """Read at most the promotion input budget plus one sentinel byte."""
-    with path.open("rb") as source:
+    with _open_regular_no_follow(path) as source:
         contents = source.read(_MAX_PROMOTION_INPUT_BYTES + 1)
     return None if len(contents) > _MAX_PROMOTION_INPUT_BYTES else contents
+
+
+def _open_regular_no_follow(path: Path) -> BinaryIO:
+    """Open a verified artifact without following a final link or reparse point."""
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            os.close(descriptor)
+            raise OSError("artifact is not a regular file")
+        if os.name == "nt" and getattr(info, "st_file_attributes", 0) & 0x400:
+            os.close(descriptor)
+            raise OSError("artifact is a reparse point")
+        return os.fdopen(descriptor, "rb")
+    except OSError:
+        raise
 
 
 def _content_claim_matches(
@@ -515,8 +534,19 @@ def _replay_is_reproduced(verified: VerifiedReplayArtifactsV1, lock_bytes: bytes
         artifact_root = Path(verified.artifact_root)
         if str(artifact_root.resolve(strict=True)) != verified.artifact_root:
             return False
-        input_bytes = (artifact_root / "input.canonical.json").read_bytes()
-        original_result_bytes = (artifact_root / "result.canonical.json").read_bytes()
+        input_path = artifact_root / "input.canonical.json"
+        result_path = artifact_root / "result.canonical.json"
+        _reject_reparse_point(input_path)
+        _reject_reparse_point(result_path)
+        with _open_regular_no_follow(input_path) as source:
+            input_bytes = source.read(_MAX_PROMOTION_INPUT_BYTES + 1)
+        with _open_regular_no_follow(result_path) as source:
+            original_result_bytes = source.read(_MAX_PROMOTION_INPUT_BYTES + 1)
+        if (
+            len(input_bytes) > _MAX_PROMOTION_INPUT_BYTES
+            or len(original_result_bytes) > _MAX_PROMOTION_INPUT_BYTES
+        ):
+            return False
         if hashlib.sha256(input_bytes).hexdigest() != verified.input_sha256:
             return False
         if hashlib.sha256(original_result_bytes).hexdigest() != verified.result_sha256:

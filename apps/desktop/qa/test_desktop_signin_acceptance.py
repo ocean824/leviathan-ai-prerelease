@@ -153,13 +153,18 @@ def test_totp_enrollment_is_text_only_validated_one_time_material() -> None:
     assert "enrollmentSecret.value = secret" in signin
     assert "enrollment.hidden = false" in signin
     assert signin.count("enrollmentUri.textContent = uri") == 1
-    assert signin.count("view.otpauthUri") == 1
+    assert signin.count("view.otpauthUri") == 2
 
     assert 'confirmForm.addEventListener("submit"' in signin
     assert 'const code = confirmForm.elements.namedItem("enrollment_code").value' in signin
-    assert "bridge.invoke(COMMANDS.enrollTotp, { code })" in signin
-    assert 'showMessage("Authenticator confirmed. Sign in again' in signin
-    confirmation_call = "await bridge.invoke(COMMANDS.enrollTotp, { code })"
+    assert "showMessage(wasGoogleEnrollment" in signin
+    assert "Authenticator confirmed. Continue with Google again" in signin
+    assert "Authenticator confirmed. Sign in again" in signin
+    confirmation_call = (
+        "await bridge.invoke(googleEnrollmentPending ? COMMANDS.googleEnrollTotp "
+        ": COMMANDS.enrollTotp, { code })"
+    )
+    assert confirmation_call in signin
     assert signin.index(confirmation_call) < signin.index(
         "clearEnrollmentMaterial();", signin.index(confirmation_call)
     )

@@ -138,6 +138,7 @@ class PrincipalV1(_NoSerialization):
     portfolio: str | None = None
     strategy: str | None = None
     break_glass: bool = False
+    device_id: str | None = None
 
     def __post_init__(self) -> None:
         _id(self.principal_id)
@@ -146,6 +147,7 @@ class PrincipalV1(_NoSerialization):
         _id(self.env)
         for value in (self.venue, self.portfolio, self.strategy):
             _optional_id(value)
+        _optional_id(self.device_id)
         if type(self.break_glass) is not bool:
             raise AuthorizationModelError()
 
@@ -165,6 +167,7 @@ class TrustedPrincipalV1(_NoSerialization):
     portfolio: str | None
     strategy: str | None
     break_glass: bool
+    device_id: str | None
 
     def __new__(cls, *args: object, **kwargs: object) -> TrustedPrincipalV1:
         raise TypeError("trusted principal requires verified adapter")
@@ -179,15 +182,20 @@ class TrustedPrincipalAdapterV1:
     """
 
     @staticmethod
-    def from_verified_claims(
-        claims: PrincipalV1, *, verifier_marker: object
-    ) -> TrustedPrincipalV1:
+    def from_verified_claims(claims: PrincipalV1, *, verifier_marker: object) -> TrustedPrincipalV1:
         if verifier_marker is not _VERIFIER_MARKER or type(claims) is not PrincipalV1:
             raise ValueError("verified principal claims required")
         principal = object.__new__(TrustedPrincipalV1)
         for name in (
-            "principal_id", "project_id", "roles", "env", "venue", "portfolio",
-            "strategy", "break_glass",
+            "principal_id",
+            "project_id",
+            "roles",
+            "env",
+            "venue",
+            "portfolio",
+            "strategy",
+            "break_glass",
+            "device_id",
         ):
             object.__setattr__(principal, name, getattr(claims, name))
         return _PRINCIPAL_ISSUER.issue(principal)

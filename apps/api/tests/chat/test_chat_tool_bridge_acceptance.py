@@ -398,6 +398,8 @@ async def test_registry_is_closed_paper_only_and_plan_never_executes() -> None:
         "genomes.list",
         "knowledge.archive.search",
         "connections.status.read",
+        "connections.credentials.status.read",
+        "connections.credentials.test",
         "data_sources.status.read",
         "risk.status.read",
         "ea.templates.list",

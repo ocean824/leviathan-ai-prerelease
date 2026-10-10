@@ -266,10 +266,6 @@ class _RuntimeActivation:
     entitlement_revision: str | None = None
 
 
-def _is_owner(principal: TrustedPrincipalV1) -> bool:
-    return any(type(role) is str and role.casefold() == "owner" for role in principal.roles)
-
-
 def _json_error(status: int, code: str) -> JSONResponse:
     return JSONResponse(status_code=status, content={"error": {"code": code}}, headers=_NO_STORE)
 
@@ -325,6 +321,8 @@ def _owner_account(
         account.account_id != account_id
         or account.environment != "live"
         or account.owner_principal_id != principal.principal_id
+        or principal.device_id is None
+        or account.device_id != principal.device_id
     ):
         return None
     return account
@@ -364,9 +362,6 @@ def _blockers(
         raise LiveActivationEvidenceError("HALT_STATUS_UNAVAILABLE")
     if halted:
         return ("HALT_ACTIVE",), None, None, None
-
-    if not _is_owner(principal):
-        return ("OWNER_REQUIRED",), None, None, None
 
     try:
         entitlement_raw = ports.entitlements.read_entitlement(principal, account.account_id)
@@ -748,7 +743,7 @@ def create_live_activation_router(
                     )
                 except Exception:
                     return _json_error(503, "STORE_UNAVAILABLE")
-                status = 403 if blockers[0] in {"HALT_ACTIVE", "OWNER_REQUIRED"} else 409
+                status = 403 if blockers[0] == "HALT_ACTIVE" else 409
                 return _json_error(status, blockers[0])
             try:
                 previous = await events_for(account)
@@ -785,7 +780,7 @@ def create_live_activation_router(
                             ),
                         )
                     )
-                    status = 403 if blockers[0] in {"HALT_ACTIVE", "OWNER_REQUIRED"} else 409
+                    status = 403 if blockers[0] == "HALT_ACTIVE" else 409
                     return _json_error(status, blockers[0])
                 entitlement = _require_exact(
                     ports.entitlements.read_entitlement(principal, account_id),
